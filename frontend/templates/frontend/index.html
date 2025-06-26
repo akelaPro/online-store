@@ -1,53 +1,54 @@
 {% extends 'frontend/base.html' %}
-{% load static %}
+
+{% block title %}Главная страница{% endblock %}
 
 {% block content %}
-<div class="row">
-    <!-- Боковое меню -->
-    <div class="col-md-3">
-        <div class="card mb-4">
-            <div class="card-header">Категории</div>
-            <div class="card-body">
-                <ul class="list-group list-group-flush" id="category-list">
-                    <!-- Категории будут загружены через JavaScript -->
-                </ul>
+<div class="container mt-4">
+    <div class="row">
+        <!-- Боковая панель с категориями -->
+        <div class="col-md-3">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4>Категории</h4>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group categories-list list-group-flush">
+                        <!-- Категории будут загружены через JS -->
+                        <div class="text-center py-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Загрузка...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         
-        <div class="card mb-4">
-            <div class="card-header">Фильтры</div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <label for="price-min" class="form-label">Минимальная цена</label>
-                    <input type="number" class="form-control" id="price-min" placeholder="0">
+        <!-- Основной контент с товарами -->
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h2 class="mb-0">Товары</h2>
+                        <div>
+                            <span class="badge bg-primary">
+                                Корзина: <span id="cart-count">0</span>
+                            </span>
+                        </div>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label for="price-max" class="form-label">Максимальная цена</label>
-                    <input type="number" class="form-control" id="price-max" placeholder="10000">
-                </div>
-                <button class="btn btn-primary w-100" id="apply-filters">Применить</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Основной контент -->
-    <div class="col-md-9">
-        <div class="alert alert-warning" id="auth-alert" style="display: none;">
-            Для добавления товаров в корзину необходимо <a href="#" class="alert-link" id="alert-login-link">войти</a>
-        </div>
-        
-        <div class="row" id="products-container">
-            <!-- Товары будут загружены через JavaScript -->
-            <div class="col-12 text-center my-5">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Загрузка...</span>
+                <div class="card-body">
+                    <div class="row products-container">
+                        <!-- Товары будут загружены через JS -->
+                        <div class="col-12 text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Загрузка товаров...</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
-{% block extra_js %}
-<script type="module" src="{% static 'frontend/js/main.js' %}"></script>
-{% endblock %}
 {% endblock %}

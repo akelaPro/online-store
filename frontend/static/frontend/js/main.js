@@ -1,287 +1,297 @@
-import api from './api.js';
-
 $(document).ready(function() {
-    const authModal = new bootstrap.Modal(document.getElementById('authModal'));
-    let isLoginForm = true;
-    let selectedCategories = [];
-    let minPrice = null;
-    let maxPrice = null;
-    let allProducts = [];
-    let filteredProducts = [];
-
-    // Инициализация при загрузке страницы
-    initializePage();
-
-    function initializePage() {
-        setupAuthHandlers();
-        setupProductHandlers();
-        api.checkAuth();
-        loadCategories();
-        loadAllProducts();
+    // Общие функции для работы с JWT
+    function setCookie(name, value, days) {
+        let expires = "";
+        if (days) {
+            const date = new Date();
+            date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+            expires = "; expires=" + date.toUTCString();
+        }
+        document.cookie = name + "=" + (value || "") + expires + "; path=/; Secure; SameSite=Lax";
     }
 
-    function setupAuthHandlers() {
-        // Переключение между формами
-        $('#toggleAuthForm').click(function(e) {
-            e.preventDefault();
-            toggleAuthForms();
-        });
-
-        // Обработка входа
-        $('#loginForm').submit(async function(e) {
-            e.preventDefault();
-            const email = $('#loginEmail').val();
-            const password = $('#loginPassword').val();
-            await handleLogin(email, password);
-        });
-
-        // Обработка регистрации
-        $('#registerForm').submit(async function(e) {
-            e.preventDefault();
-            const email = $('#registerEmail').val();
-            const username = $('#registerUsername').val();
-            const password = $('#registerPassword').val();
-            const passwordConfirm = $('#registerPasswordConfirm').val();
-            
-            if (password !== passwordConfirm) {
-                alert('Пароли не совпадают');
-                return;
-            }
-            
-            await handleRegister(email, username, password, passwordConfirm);
-        });
-
-        // Открытие модального окна
-        $('body').on('click', '#login-link, #alert-login-link', function(e) {
-            e.preventDefault();
-            showLoginForm();
-            authModal.show();
-        });
-
-        $('body').on('click', '#register-link', function(e) {
-            e.preventDefault();
-            showRegisterForm();
-            authModal.show();
-        });
-
-        // Выход
-        $('body').on('click', '#logout-link', function(e) {
-            e.preventDefault();
-            handleLogout();
-        });
+    function getCookie(name) {
+        const nameEQ = name + "=";
+        const ca = document.cookie.split(';');
+        for (let i = 0; i < ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+            if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+        }
+        return null;
     }
 
-    function setupProductHandlers() {
-        // Обработчики фильтров
-        $('#apply-filters').click(applyFilters);
-        $(document).on('click', '.add-to-cart', addToCartHandler);
+    function deleteCookie(name) {
+        document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     }
 
-    // Auth functions
-    function toggleAuthForms() {
-        isLoginForm = !isLoginForm;
+    async function checkAuth() {
+        const accessToken = getCookie('access_token');
+        if (!accessToken) return false;
         
-        if (isLoginForm) {
-            showLoginForm();
-        } else {
-            showRegisterForm();
-        }
-    }
-
-    function showLoginForm() {
-        isLoginForm = true;
-        $('#loginForm').show();
-        $('#registerForm').hide();
-        $('#authModalTitle').text('Вход');
-        $('#toggleAuthForm').text('Нет аккаунта? Зарегистрироваться');
-    }
-
-    function showRegisterForm() {
-        isLoginForm = false;
-        $('#loginForm').hide();
-        $('#registerForm').show();
-        $('#authModalTitle').text('Регистрация');
-        $('#toggleAuthForm').text('Уже есть аккаунт? Войти');
-    }
-
-    async function handleLogin(email, password) {
         try {
-            await api.login(email, password);
-            authModal.hide();
-        } catch (error) {
-            alert('Ошибка авторизации: ' + error.message);
-        }
-    }
-
-    async function handleRegister(email, username, password, passwordConfirm) {
-        try {
-            await api.register(email, username, password, passwordConfirm);
-            await api.login(email, password);
-            authModal.hide();
-        } catch (error) {
-            alert('Ошибка регистрации: ' + error.message);
-        }
-    }
-
-    async function handleLogout() {
-        try {
-            await api.logout();
-            location.reload();
-        } catch (error) {
-            alert('Ошибка при выходе: ' + error.message);
-        }
-    }
-
-    // Product functions
-    function loadCategories() {
-        api.getCategories()
-            .then(data => {
-                renderCategories(data);
-                setupCategoryHandlers();
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showError('Ошибка загрузки категорий');
+            const response = await $.ajax({
+                url: '/api/check_auth/',
+                type: 'GET'
             });
+            return response.isAuthenticated;
+        } catch {
+            return false;
+        }
     }
 
+    // Обработка CSRF
+    function getCSRFToken() {
+        return $('[name=csrfmiddlewaretoken]').val();
+    }
+
+    // Настройка AJAX запросов
+    $.ajaxSetup({
+        beforeSend: function(xhr, settings) {
+            if (!(/^http:.*/.test(settings.url) || /^https:.*/.test(settings.url))) {
+            xhr.setRequestHeader("X-CSRFToken", getCSRFToken());
+        }
+    
+        const accessToken = getCookie('access_token');
+        if (accessToken && !settings.noAuth) {
+            xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+        }
+    },
+        error: function(xhr, textStatus, errorThrown) {
+            if (xhr.status === 401 && !xhr.config._retry) {
+                const refreshToken = getCookie('refresh_token');
+                
+                if (refreshToken) {
+                    xhr.config._retry = true;
+                    
+                    return $.ajax({
+                        url: '/api/auth/jwt/refresh/',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ refresh: refreshToken }),
+                        success: function(response) {
+                            setCookie('access_token', response.access, 1);
+                            xhr.config.headers['Authorization'] = 'Bearer ' + response.access;
+                            return $.ajax(xhr.config);
+                        },
+                        error: function() {
+                            deleteCookie('access_token');
+                            deleteCookie('refresh_token');
+                            window.location.href = '/login/';
+                        }
+                    });
+                } else {
+                    deleteCookie('access_token');
+                    window.location.href = '/login/';
+                }
+            }
+            return Promise.reject(xhr);
+        }
+    });
+
+    // Загрузка данных при старте
+    function loadInitialData() {
+        loadCategories();
+        loadProducts();
+        updateCartCount();
+    }
+
+    // Загрузка категорий
+    function loadCategories() {
+        $.get('/api/categories/', function(data) {
+            renderCategories(data.results || data);
+        }).fail(function() {
+            console.error('Ошибка загрузки категорий');
+        });
+    }
+
+    // Загрузка товаров
+    function loadProducts(categoryId = null) {
+        let url = '/api/products/';
+        if (categoryId) {
+            url += `?categories=${categoryId}`;
+        }
+
+        $.get(url, function(data) {
+            renderProducts(data.results || data);
+        }).fail(function() {
+            console.error('Ошибка загрузки товаров');
+        });
+    }
+
+    // Отрисовка категорий
     function renderCategories(categories) {
-        const categoryList = $('#category-list');
-        categoryList.empty();
+        const $container = $('.categories-list');
+        $container.empty();
         
-        categoryList.append(`
-            <li class="list-group-item category-item" data-id="all">
-                <a href="#" class="text-decoration-none">Все категории</a>
-            </li>
+        // Добавляем "Все категории"
+        $container.append(`
+            <a href="#" class="list-group-item list-group-item-action active" data-id="all">
+                Все категории
+            </a>
         `);
         
         categories.forEach(category => {
-            categoryList.append(`
-                <li class="list-group-item category-item" data-id="${category.id}">
-                    <a href="#" class="text-decoration-none">${category.name}</a>
-                </li>
+            $container.append(`
+                <a href="#" class="list-group-item list-group-item-action" data-id="${category.id}">
+                    ${category.name}
+                </a>
             `);
         });
-        
-        $('.category-item[data-id="all"]').addClass('active');
-    }
 
-    function setupCategoryHandlers() {
-        $('.category-item').click(function(e) {
+        // Обработчик выбора категории
+        $container.find('a').on('click', function(e) {
             e.preventDefault();
+            $container.find('a').removeClass('active');
+            $(this).addClass('active');
+            
             const categoryId = $(this).data('id');
-            
             if (categoryId === 'all') {
-                selectedCategories = [];
-                $('.category-item').removeClass('active');
-                $(this).addClass('active');
+                loadProducts();
             } else {
-                $(this).toggleClass('active');
-                
-                selectedCategories = $('.category-item.active')
-                    .map(function() { 
-                        const id = $(this).data('id');
-                        return id !== 'all' ? id : null; 
-                    })
-                    .get()
-                    .filter(id => id !== null);
-                
-                if (selectedCategories.length === 0 || 
-                    $('.category-item[data-id="all"]').hasClass('active')) {
-                    selectedCategories = [];
-                    $('.category-item').removeClass('active');
-                    $('.category-item[data-id="all"]').addClass('active');
-                }
+                loadProducts(categoryId);
             }
-            
-            filterProducts();
         });
     }
 
-    function loadAllProducts() {
-        api.getProducts()
-            .then(data => {
-                allProducts = data;
-                filterProducts();
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showError('Ошибка загрузки товаров');
-            });
-    }
-
-    function applyFilters() {
-        minPrice = $('#price-min').val() || null;
-        maxPrice = $('#price-max').val() || null;
-        filterProducts();
-    }
-
-    function filterProducts() {
-        filteredProducts = allProducts.filter(product => {
-            if (selectedCategories.length > 0) {
-                const productCategories = product.categories.map(c => c.id);
-                const hasCategory = productCategories.some(catId => selectedCategories.includes(catId));
-                if (!hasCategory) return false;
-            }
-            
-            const price = parseFloat(product.price);
-            if (minPrice && price < parseFloat(minPrice)) return false;
-            if (maxPrice && price > parseFloat(maxPrice)) return false;
-            
-            return true;
-        });
+    // Отрисовка товаров
+    function renderProducts(products) {
+        const $container = $('.products-container');
+        $container.empty();
         
-        displayProducts();
-    }
-
-    function displayProducts() {
-        const productsContainer = $('#products-container');
-        productsContainer.empty();
-        
-        if (filteredProducts.length === 0) {
-            productsContainer.html('<div class="col-12"><p class="text-center">Товары не найдены</p></div>');
+        if (products.length === 0) {
+            $container.html('<div class="col-12"><p>Товары не найдены</p></div>');
             return;
         }
         
-        filteredProducts.forEach(product => {
-            const imageUrl = product.image ? product.image : '/static/images/no-image.jpg';
-            productsContainer.append(`
+        products.forEach(product => {
+            const imageUrl = product.image || '/static/images/no-image.png';
+            $container.append(`
                 <div class="col-md-4 mb-4">
                     <div class="card h-100">
-                        <img src="${imageUrl}" class="card-img-top" alt="${product.title}">
+                        <img src="${imageUrl}" class="card-img-top product-image" alt="${product.title}">
                         <div class="card-body">
                             <h5 class="card-title">${product.title}</h5>
-                            <p class="card-text">${product.description ? product.description.substring(0, 100) + '...' : ''}</p>
-                            <p class="text-primary fw-bold">${product.price} руб.</p>
-                            <button class="btn btn-primary add-to-cart" data-id="${product.id}">В корзину</button>
+                            <p class="card-text">${product.price} руб.</p>
+                            <a href="/product/${product.id}" class="btn btn-primary">Подробнее</a>
+                            <button class="btn btn-success add-to-cart" data-product-id="${product.id}">
+                                В корзину
+                            </button>
                         </div>
                     </div>
                 </div>
             `);
         });
+
+        // Инициализация обработчиков для кнопок "В корзину"
+        initAddToCartButtons();
     }
 
-    function addToCartHandler() {
-        const productId = $(this).data('id');
-        addToCart(productId);
+    // Инициализация кнопок "В корзину"
+    function initAddToCartButtons() {
+        $('.add-to-cart').off('click').on('click', function() {
+            if (!checkAuth()) {
+                window.location.href = '/login/';
+                return;
+            }
+
+            const productId = $(this).data('product-id');
+            addToCart(productId);
+        });
     }
 
-    async function addToCart(productId) {
-        try {
-            await api.addToCart(productId);
-            showSuccess('Товар добавлен в корзину');
-        } catch (error) {
-            console.error('Ошибка:', error);
-            showError(error.message);
-        }
+    // Добавление в корзину
+    function addToCart(productId) {
+        $.ajax({
+            url: '/api/cart/items/',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                product_id: productId,
+                quantity: 1
+            }),
+            success: function() {
+                updateCartCount();
+                showAlert('Товар добавлен в корзину!', 'success');
+            },
+            error: function(xhr) {
+                showAlert('Ошибка при добавлении в корзину', 'danger');
+            }
+        });
     }
 
-    // Helper functions
-    function showError(message) {
-        alert(message);
+    // Обновление счетчика корзины
+    function updateCartCount() {
+        $.get('/api/cart/', function(data) {
+            const count = data.items ? data.items.length : 0;
+            $('#cart-count').text(count);
+        }).fail(function() {
+            $('#cart-count').text('0');
+        });
     }
 
-    function showSuccess(message) {
-        alert(message);
+    // Показать уведомление
+    function showAlert(message, type = 'info') {
+        const $alert = $(`
+            <div class="alert alert-${type} alert-dismissible fade show fixed-top" role="alert" style="top: 20px; right: 20px; width: 300px; z-index: 1000;">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `);
+        
+        $('body').append($alert);
+        setTimeout(() => $alert.alert('close'), 3000);
     }
+
+    // Инициализация при загрузке
+    loadInitialData();
+
+    // Обработчики форм
+    $('#login-form').on('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            email: $('#email').val(),
+            password: $('#password').val()
+        };
+
+        $.ajax({
+            url: '/api/auth/jwt/create/',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(formData),
+            success: function(response) {
+                setCookie('access_token', response.access, 1);
+                setCookie('refresh_token', response.refresh, 7);
+                window.location.href = '/';
+            },
+            error: function() {
+                showAlert('Ошибка входа. Проверьте email и пароль.', 'danger');
+            }
+        });
+    });
+
+    $('#logout-btn').on('click', function(e) {
+        e.preventDefault();
+        
+        $.ajax({
+            url: '/api/auth/logout/',
+            type: 'POST',
+            headers: {
+                'X-CSRFToken': getCSRFToken() // Явно добавляем CSRF токен
+            },
+            success: function() {
+                deleteCookie('access_token');
+                deleteCookie('refresh_token');
+                window.location.href = '/';
+            },
+            error: function(xhr) {
+                console.error('Logout error:', xhr);
+                // Даже при ошибке очищаем куки
+                deleteCookie('access_token');
+                deleteCookie('refresh_token');
+                window.location.href = '/';
+            }
+        });
+    });
 });

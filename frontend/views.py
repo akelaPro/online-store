@@ -7,5 +7,16 @@ from django.views.generic import TemplateView
 def home(request):
     return render(request, 'frontend/index.html')
 
-def cart(request):
-    return render(request, 'frontend/cart.html')
+
+class RegistrationTemplateView(TemplateView):
+    template_name = 'frontend/register.html'
+
+
+class LoginTemplateView(TemplateView):
+    template_name = 'frontend/login.html'
+
+class CartTemplateView(TemplateView):
+    template_name = 'frontend/cart.html'
+
+class productTemplateView(TemplateView):
+    template_name = 'frontend/product_detail.html'

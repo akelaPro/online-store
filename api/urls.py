@@ -3,12 +3,7 @@ from rest_framework_nested import routers
 from rest_framework.routers import DefaultRouter
 from api.views import ProductViewSet, CartViewSet, CartItemViewSet
 from api.views.Base_views import CategoryViewSet
-from api.views.auth import CheckAuthView, LogoutView, RegisterView
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-    TokenVerifyView,
-) 
+from api.views.auth import AuthCheckView, CookieTokenObtainPairView, CookieTokenRefreshView, RegisterView, logout_view
 
 
 
@@ -30,13 +25,13 @@ urlpatterns = [
     # JWT-эндпоинты
     path('', include(router.urls)),
     path('', include(cart_router.urls)),
-    path('auth/jwt/create/', TokenObtainPairView.as_view(), name='jwt-create'),  # Логин (получение токена)
-    path('auth/jwt/refresh/', TokenRefreshView.as_view(), name='jwt-refresh'),   # Обновление токена
-    path('auth/jwt/verify/', TokenVerifyView.as_view(), name='jwt-verify'),      # Проверка токена
-    
+    path('auth/jwt/create/', CookieTokenObtainPairView.as_view(), name='jwt-create'),  # Логин (получение токена)
+    path('auth/jwt/refresh/', CookieTokenRefreshView.as_view(), name='jwt-refresh'),   # Обновление токена
+    #path('auth/jwt/verify/', TokenVerifyView.as_view(), name='jwt-verify'),      # Проверка токена -  не обязателен при такой схеме
+
     # Кастомные эндпоинты
     path('auth/register/', RegisterView.as_view(), name='register'),             # Регистрация
-    path('auth/logout/', LogoutView.as_view(), name='logout'),                   # Выход
-    path('check_auth/', CheckAuthView.as_view(), name='check_auth'),              # Проверка аутентификации
+    path('auth/logout/', logout_view, name='logout'),                   # Выход
+    path('check_auth/', AuthCheckView.as_view(), name='check_auth'),              # Проверка аутентификации
 ]
 
