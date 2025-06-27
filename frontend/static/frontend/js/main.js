@@ -52,11 +52,12 @@ $(document).ready(function() {
     // Настройка AJAX запросов
     $.ajaxSetup({
         beforeSend: function(xhr, settings) {
+            // Добавляем CSRF токен
             if (!(/^http:.*/.test(settings.url) || /^https:.*/.test(settings.url))) {
-                // Добавляем CSRF токен для всех локальных запросов
                 xhr.setRequestHeader("X-CSRFToken", getCSRFToken());
             }
-        
+            
+            // Добавляем JWT токен из куки в заголовок
             const accessToken = getCookie('access_token');
             if (accessToken && !settings.noAuth) {
                 xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);

@@ -15,49 +15,39 @@ class JWTAuthMiddleware:
             '/admin/',
             '/login/',
             '/register/',
-            '/static/',  # Add this line to exempt all static files
-            '/media/',   # Add this line to exempt all media files
+            '/static/',
+            '/media/',
             '/api/auth/jwt/create/',
             '/api/auth/jwt/refresh/',
             '/api/auth/register/',
         ]
 
     def __call__(self, request):
-        # Логируем входящий запрос
-        logger.debug(f"\nIncoming request: {request.method} {request.path}")
-        logger.debug(f"Cookies: {request.COOKIES}")
-        logger.debug(f"Headers: {dict(request.headers)}")
-
         # Пропускаем аутентификацию для определенных путей
         if any(request.path.startswith(path) for path in self.exempt_paths):
-            logger.debug(f"Path {request.path} is exempt from auth")
             return self.get_response(request)
 
         # Проверяем JWT токен
         access_token = request.COOKIES.get('access_token')
         
         if access_token:
-            logger.debug(f"Found access token: {access_token[:10]}...")
             try:
+                # Добавляем токен в заголовок Authorization для DRF
+                request.META['HTTP_AUTHORIZATION'] = f'Bearer {access_token}'
+                
                 auth = JWTAuthentication()
                 validated_token = auth.get_validated_token(access_token)
                 request.user = auth.get_user(validated_token)
-                logger.debug(f"Authenticated as user: {request.user.id}")
-            except InvalidToken as e:
-                logger.warning(f"Invalid token: {str(e)}")
-                return self._handle_invalid_token(request)
-            except TokenError as e:
-                logger.error(f"Token error: {str(e)}")
-                return self._handle_invalid_token(request)
             except Exception as e:
-                logger.error(f"Unexpected error during authentication: {str(e)}", exc_info=True)
+                logger.warning(f"Authentication error: {str(e)}")
                 return self._handle_invalid_token(request)
         else:
-            logger.warning("No access token found in cookies")
             return self._handle_missing_token(request)
 
         response = self.get_response(request)
         return response
+
+    # ... остальные методы остаются без изменений
 
     def _handle_invalid_token(self, request):
         logger.warning(f"Invalid token for path: {request.path}")
