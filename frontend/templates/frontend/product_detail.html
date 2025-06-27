@@ -3,65 +3,184 @@
 {% block title %}{{ product.title }}{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-6">
-        <img src="{{ product.image.url }}" class="img-fluid" alt="{{ product.title }}">
-    </div>
-    <div class="col-md-6">
-        <h1>{{ product.title }}</h1>
-        <p class="text-muted">Категории: 
-            {% for category in product.categories.all %}
-            <span class="badge bg-secondary">{{ category.name }}</span>
-            {% endfor %}
-        </p>
-        <h3 class="my-4">{{ product.price }} руб.</h3>
-        <p>{{ product.description }}</p>
-        
-        <button class="btn btn-primary btn-lg add-to-cart" data-product-id="{{ product.id }}">
-            Добавить в корзину
-        </button>
-    </div>
+<div id="product-detail" class="row">
+    <!-- Контент будет загружен динамически -->
 </div>
 
-<div class="mt-5">
-    <h3>Отзывы</h3>
-    <div class="reviews-container">
-        {% for review in product.reviews.all %}
-        <div class="card mb-3">
-            <div class="card-body">
-                <h5 class="card-title">{{ review.user.username }}</h5>
-                <div class="text-warning">
-                    {% for i in "12345" %}
-                        {% if forloop.counter <= review.rating %}★{% else %}☆{% endif %}
-                    {% endfor %}
-                </div>
-                <p class="card-text">{{ review.comment }}</p>
-                <p class="text-muted">{{ review.created_at }}</p>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const productId = window.location.pathname.split('/').filter(Boolean).pop();
+    loadProductDetail(productId);
     
-    {% if user.is_authenticated %}
-    <form id="review-form" class="mt-4">
-        <h4>Оставить отзыв</h4>
-        <input type="hidden" name="product_id" value="{{ product.id }}">
-        <div class="mb-3">
-            <label class="form-label">Оценка</label>
-            <select name="rating" class="form-select">
-                <option value="5">5 звезд</option>
-                <option value="4">4 звезды</option>
-                <option value="3">3 звезды</option>
-                <option value="2">2 звезды</option>
-                <option value="1">1 звезда</option>
-            </select>
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Комментарий</label>
-            <textarea name="comment" class="form-control" rows="3"></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary">Отправить</button>
-    </form>
-    {% endif %}
-</div>
+    // Обработчик для добавления в корзину
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('add-to-cart')) {
+            e.preventDefault();
+            addToCart(e.target.dataset.productId);
+        }
+    });
+    
+    // Обработчик формы отзыва
+    const reviewForm = document.getElementById('review-form');
+    if (reviewForm) {
+        reviewForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            submitReview();
+        });
+    }
+});
+
+async function loadProductDetail(productId) {
+    try {
+        const response = await fetch(`/api/products/${productId}/`);
+        const product = await response.json();
+        
+        // Форматируем цену
+        const formattedPrice = new Intl.NumberFormat('ru-RU').format(product.price);
+        
+        // Генерируем HTML для продукта
+        let productHtml = `
+            <div class="col-md-6">
+                <img src="${product.image}" class="img-fluid" alt="${product.title}">
+            </div>
+            <div class="col-md-6">
+                <h1>${product.title}</h1>
+                <p class="text-muted">Категории: 
+                    ${product.categories.map(cat => 
+                        `<span class="badge bg-secondary">${cat.name}</span>`
+                    ).join(' ')}
+                </p>
+                <h3 class="my-4">${formattedPrice} руб.</h3>
+                <p>${product.description}</p>
+                
+                <button class="btn btn-primary btn-lg add-to-cart" data-product-id="${product.id}">
+                    Добавить в корзину
+                </button>
+            </div>
+        `;
+        
+        // Генерируем HTML для отзывов
+        let reviewsHtml = '';
+        if (product.reviews && product.reviews.length > 0) {
+            reviewsHtml = product.reviews.map(review => `
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title">${review.user.username}</h5>
+                        <div class="text-warning">
+                            ${'★'.repeat(review.rating)}${'☆'.repeat(5 - review.rating)}
+                        </div>
+                        <p class="card-text">${review.comment}</p>
+                        <p class="text-muted">${new Date(review.created_at).toLocaleString()}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Вставляем HTML в DOM
+        document.getElementById('product-detail').innerHTML = productHtml;
+        
+        // Добавляем блок с отзывами
+        const reviewsContainer = document.createElement('div');
+        reviewsContainer.className = 'mt-5';
+        reviewsContainer.innerHTML = `
+            <h3>Отзывы</h3>
+            <div class="reviews-container">
+                ${reviewsHtml}
+            </div>
+            
+            {% if user.is_authenticated %}
+            <form id="review-form" class="mt-4">
+                <h4>Оставить отзыв</h4>
+                <input type="hidden" name="product_id" value="${product.id}">
+                <div class="mb-3">
+                    <label class="form-label">Оценка</label>
+                    <select name="rating" class="form-select">
+                        <option value="5">5 звезд</option>
+                        <option value="4">4 звезды</option>
+                        <option value="3">3 звезды</option>
+                        <option value="2">2 звезды</option>
+                        <option value="1">1 звезда</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Комментарий</label>
+                    <textarea name="comment" class="form-control" rows="3"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Отправить</button>
+            </form>
+            {% endif %}
+        `;
+        
+        document.getElementById('product-detail').appendChild(reviewsContainer);
+        
+    } catch (error) {
+        console.error('Ошибка загрузки продукта:', error);
+        document.getElementById('product-detail').innerHTML = `
+            <div class="alert alert-danger">
+                Произошла ошибка при загрузке данных продукта.
+            </div>
+        `;
+    }
+}
+
+async function addToCart(productId) {
+    try {
+        const response = await fetch('/api/cart/items/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                product_id: productId,
+                quantity: 1
+            })
+        });
+        
+        if (response.ok) {
+            alert('Товар добавлен в корзину');
+        } else {
+            const error = await response.json();
+            alert(error.detail || 'Ошибка при добавлении в корзину');
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        alert('Произошла ошибка');
+    }
+}
+
+async function submitReview() {
+    const form = document.getElementById('review-form');
+    const formData = new FormData(form);
+    
+    try {
+        const response = await fetch('/api/reviews/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                product_id: formData.get('product_id'),
+                rating: formData.get('rating'),
+                comment: formData.get('comment')
+            })
+        });
+        
+        if (response.ok) {
+            alert('Отзыв добавлен');
+            form.reset();
+            // Перезагружаем страницу, чтобы показать новый отзыв
+            const productId = formData.get('product_id');
+            loadProductDetail(productId);
+        } else {
+            const error = await response.json();
+            alert(error.detail || 'Ошибка при добавлении отзыва');
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        alert('Произошла ошибка');
+    }
+}
+</script>
 {% endblock %}

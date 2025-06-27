@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from api.models.cart_item.models import CartItem
 from api.models.product.models import Product
-from api.serializers.cart_serializer import CartSerializer
+
 from api.serializers.product_serializer import ProductSerializer
 
 
