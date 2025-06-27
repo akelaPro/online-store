@@ -1,5 +1,5 @@
 $(document).ready(function() {
-    // Общие функции для работы с JWT
+    // Общие функции для работы с JWT и куками
     function setCookie(name, value, days) {
         let expires = "";
         if (days) {
@@ -25,6 +25,15 @@ $(document).ready(function() {
         document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     }
 
+    // Новая функция для получения CSRF токена из куки
+    function getCSRFToken() {
+        const cookieValue = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('csrftoken='))
+            ?.split('=')[1];
+        return cookieValue || '';
+    }
+
     async function checkAuth() {
         const accessToken = getCookie('access_token');
         if (!accessToken) return false;
@@ -40,23 +49,19 @@ $(document).ready(function() {
         }
     }
 
-    // Обработка CSRF
-    function getCSRFToken() {
-        return $('[name=csrfmiddlewaretoken]').val();
-    }
-
     // Настройка AJAX запросов
     $.ajaxSetup({
         beforeSend: function(xhr, settings) {
             if (!(/^http:.*/.test(settings.url) || /^https:.*/.test(settings.url))) {
-            xhr.setRequestHeader("X-CSRFToken", getCSRFToken());
-        }
-    
-        const accessToken = getCookie('access_token');
-        if (accessToken && !settings.noAuth) {
-            xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
-        }
-    },
+                // Добавляем CSRF токен для всех локальных запросов
+                xhr.setRequestHeader("X-CSRFToken", getCSRFToken());
+            }
+        
+            const accessToken = getCookie('access_token');
+            if (accessToken && !settings.noAuth) {
+                xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+            }
+        },
         error: function(xhr, textStatus, errorThrown) {
             if (xhr.status === 401 && !xhr.config._retry) {
                 const refreshToken = getCookie('refresh_token');
@@ -278,19 +283,18 @@ $(document).ready(function() {
             url: '/api/auth/logout/',
             type: 'POST',
             headers: {
-                'X-CSRFToken': getCSRFToken() // Явно добавляем CSRF токен
+                'X-CSRFToken': getCSRFToken() // Используем новую функцию для получения CSRF
             },
             success: function() {
                 deleteCookie('access_token');
                 deleteCookie('refresh_token');
-                window.location.href = '/';
+                window.location.href = '/login/';
             },
             error: function(xhr) {
                 console.error('Logout error:', xhr);
-                // Даже при ошибке очищаем куки
                 deleteCookie('access_token');
                 deleteCookie('refresh_token');
-                window.location.href = '/';
+                window.location.href = '/login/';
             }
         });
     });

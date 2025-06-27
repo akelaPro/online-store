@@ -5,6 +5,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import status
 from django.http import HttpResponse
 from django.contrib.auth import get_user_model
+from django.views.decorators.csrf import ensure_csrf_cookie
+
 
 
 User = get_user_model()
@@ -103,6 +105,10 @@ class AuthCheckView(APIView):
             'username': request.user.username,
         })
 
+
+
+
+@ensure_csrf_cookie
 def logout_view(request):
     response = HttpResponse('Logged out successfully')
     response.delete_cookie('access_token')
