@@ -1,4 +1,3 @@
-from django.contrib import admin
 from django.urls import include, path
 from frontend.views import *
 
@@ -10,7 +9,10 @@ urlpatterns = [
     path('product/<int:pk>/', productTemplateView.as_view(), name='photo_detail'),
     path('login/', LoginTemplateView.as_view(), name='login'),
     path('register/', RegistrationTemplateView.as_view(), name='register'),
-
+    path('checkout/', checkout_view, name='checkout'),
+    path('order-success/<int:order_id>/', order_success_view, name='order_success'),
+    path('orders/<int:order_id>/', order_detail_view, name='order_detail'),
+    path('my-orders/', user_orders_view, name='user_orders'),
 
     
 ]

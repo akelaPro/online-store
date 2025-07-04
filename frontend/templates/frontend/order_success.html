@@ -1,0 +1,24 @@
+<!-- frontend/templates/frontend/order_success.html -->
+{% extends 'frontend/base.html' %}
+
+{% block title %}Заказ оформлен{% endblock %}
+
+{% block content %}
+<div class="container mt-5 text-center">
+    <div class="card p-5">
+        <h1 class="text-success mb-4">Заказ успешно оформлен!</h1>
+        <p class="lead">Номер вашего заказа: <strong>#{{ order_id }}</strong></p>
+        <p>Мы отправили информацию о заказе на вашу электронную почту.</p>
+        <p>Спасибо за покупку!</p>
+        
+        <div class="mt-4">
+            <a href="{% url 'order_detail' order_id %}" class="btn btn-primary me-2">
+                Подробности заказа
+            </a>
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                Вернуться на главную
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

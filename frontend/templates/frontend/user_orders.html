@@ -1,0 +1,85 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}Мои заказы{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Мои заказы</h1>
+    <div id="orders-list">
+        <!-- Заказы будут загружены через JS -->
+        <div class="text-center my-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Загрузка...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    function loadUserOrders() {
+        $.ajax({
+            url: '/api/orders/',
+            type: 'GET',
+            success: function(orders) {
+                const $container = $('#orders-list');
+                $container.empty();
+                
+                if (orders.length === 0) {
+                    $container.html('<div class="alert alert-info">У вас пока нет заказов</div>');
+                    return;
+                }
+                
+                let html = '<div class="list-group">';
+                
+                orders.forEach(order => {
+                    // Определяем класс для статуса
+                    let statusClass = 'primary';
+                    if (order.status === 'paid') statusClass = 'info';
+                    else if (order.status === 'shipped') statusClass = 'warning';
+                    else if (order.status === 'delivered') statusClass = 'success';
+                    else if (order.status === 'cancelled') statusClass = 'danger';
+                    
+                    // Форматируем дату
+                    const orderDate = new Date(order.created_at);
+                    const formattedDate = orderDate.toLocaleDateString('ru-RU', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    html += `
+                        <a href="/orders/${order.id}/" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1">Заказ #${order.id}</h5>
+                                <span class="badge bg-${statusClass} rounded-pill">
+                                    ${order.status_display || order.status}
+                                </span>
+                            </div>
+                            <div class="d-flex justify-content-between mt-2">
+                                <div>
+                                    <small class="text-muted">Дата: ${formattedDate}</small>
+                                </div>
+                                <div>
+                                    <strong>Сумма: ${order.total_price} руб.</strong>
+                                </div>
+                            </div>
+                        </a>`;
+                });
+                
+                html += '</div>';
+                $container.html(html);
+            },
+            error: function() {
+                $('#orders-list').html('<div class="alert alert-danger">Ошибка загрузки заказов</div>');
+            }
+        });
+    }
+    
+    // Загружаем заказы при открытии страницы
+    loadUserOrders();
+});
+</script>
+{% endblock %}

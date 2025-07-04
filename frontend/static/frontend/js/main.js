@@ -277,6 +277,107 @@ $(document).ready(function() {
         });
     });
 
+
+    function checkoutFromCart() {
+        if (!checkAuth()) {
+            window.location.href = '/login/?next=/checkout/';
+            return;
+        }
+    
+        // Проверяем, что в корзине есть товары
+        $.get('/api/cart/', function(cart) {
+            if (!cart.items || cart.items.length === 0) {
+                showAlert('Ваша корзина пуста. Добавьте товары перед оформлением заказа.', 'warning');
+                return;
+            }
+            
+            window.location.href = '/checkout/';
+        });
+    }
+    
+    // Обновление кнопки в корзине
+    $(document).on('cart-loaded', function() {
+        $('.checkout-btn').off('click').on('click', checkoutFromCart);
+    });
+    
+    // Инициализация при загрузке
+    $(document).ready(function() {
+        // Обработчик для страницы заказов
+        if ($('#orders-list').length) {
+            loadUserOrders();
+        }
+        
+        // Обработчик для страницы деталей заказа
+        if ($('#order-detail').length) {
+            loadOrderDetail();
+        }
+    });
+    
+    // Загрузка списка заказов пользователя
+    function loadUserOrders() {
+        $.get('/api/orders/', function(orders) {
+            const $container = $('#orders-list');
+            $container.empty();
+            
+            if (orders.length === 0) {
+                $container.html('<div class="alert alert-info">У вас пока нет заказов</div>');
+                return;
+            }
+            
+            let html = '<div class="list-group">';
+            
+            orders.forEach(order => {
+                html += `
+                    <a href="/orders/${order.id}/" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h5 class="mb-1">Заказ #${order.id}</h5>
+                            <small>${order.status}</small>
+                        </div>
+                        <p class="mb-1">${order.total_price} руб.</p>
+                        <small>${new Date(order.created_at).toLocaleDateString()}</small>
+                    </a>`;
+            });
+            
+            html += '</div>';
+            $container.html(html);
+        }).fail(function() {
+            $('#orders-list').html('<div class="alert alert-danger">Ошибка загрузки заказов</div>');
+        });
+    }
+    
+    // Загрузка деталей конкретного заказа
+    function loadOrderDetail(orderId) {
+        $.get(`/api/orders/${orderId}/`, function(order) {
+            // Заполняем данные на странице
+            $('#order-number').text(order.id);
+            $('#order-status').text(order.status);
+            $('#order-date').text(new Date(order.created_at).toLocaleString());
+            $('#order-total').text(order.total_price + ' руб.');
+            
+            // Заполняем таблицу товаров
+            const $itemsTable = $('#order-items-table tbody');
+            $itemsTable.empty();
+            
+            order.items.forEach(item => {
+                $itemsTable.append(`
+                    <tr>
+                        <td>${item.product.title}</td>
+                        <td>${item.quantity}</td>
+                        <td>${item.price} руб.</td>
+                        <td>${(item.price * item.quantity).toFixed(2)} руб.</td>
+                    </tr>
+                `);
+            });
+        }).fail(function() {
+            $('#order-detail').html('<div class="alert alert-danger">Ошибка загрузки данных заказа</div>');
+        });
+    }
+
+    $(document).on('cart-loaded', function() {
+        $('.checkout-btn').off('click').on('click', checkoutFromCart);
+    });
+
+
     $('#logout-btn').on('click', function(e) {
         e.preventDefault();
         

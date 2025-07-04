@@ -1,0 +1,140 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}Оформление заказа{% endblock %}
+
+{% block content %}
+<h1>Оформление заказа</h1>
+<div class="checkout-container">
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3>Детали заказа</h3>
+                </div>
+                <div class="card-body" id="order-items-container">
+                    <!-- Товары будут загружены через JS -->
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Загрузка...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <h4>Итого: <span id="order-total">0</span> руб.</h4>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Данные покупателя</h3>
+                </div>
+                <div class="card-body">
+                    <form id="checkout-form">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" 
+                                   value="{{ request.user.email }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="phone_number" class="form-label">Телефон</label>
+                            <input type="tel" class="form-control" id="phone_number" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="shipping_address" class="form-label">Адрес доставки</label>
+                            <textarea class="form-control" id="shipping_address" rows="3" required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="payment_method" class="form-label">Способ оплаты</label>
+                            <select class="form-select" id="payment_method" required>
+                                <option value="cash">Наличными при получении</option>
+                                <option value="card">Картой онлайн</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="comment" class="form-label">Комментарий к заказу</label>
+                            <textarea class="form-control" id="comment" rows="2"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg w-100">Оформить заказ</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Загружаем содержимое корзины
+    function loadCartForCheckout() {
+        $.get('/api/cart/', function(cart) {
+            const $container = $('#order-items-container');
+            
+            if (cart.items && cart.items.length > 0) {
+                let html = '<table class="table">';
+                html += '<thead><tr><th>Товар</th><th>Количество</th><th>Цена</th><th>Сумма</th></tr></thead><tbody>';
+                
+                cart.items.forEach(item => {
+                    html += `
+                        <tr>
+                            <td>${item.product.title}</td>
+                            <td>${item.quantity}</td>
+                            <td>${item.price} руб.</td>
+                            <td>${(item.price * item.quantity).toFixed(2)} руб.</td>
+                        </tr>`;
+                });
+                
+                html += '</tbody></table>';
+                $container.html(html);
+                $('#order-total').text(cart.total_price || 0);
+            } else {
+                $container.html('<div class="alert alert-warning">Ваша корзина пуста</div>');
+                $('#checkout-form button').prop('disabled', true);
+            }
+        }).fail(function() {
+            $('#order-items-container').html('<div class="alert alert-danger">Ошибка загрузки корзины</div>');
+        });
+    }
+    
+    // Обработка оформления заказа
+    $('#checkout-form').on('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            email: $('#email').val(),
+            phone_number: $('#phone_number').val(),
+            shipping_address: $('#shipping_address').val(),
+            payment_method: $('#payment_method').val(),
+            comment: $('#comment').val()
+        };
+        
+        // Блокируем кнопку, чтобы избежать повторных отправок
+        const $submitBtn = $(this).find('button[type="submit"]');
+        $submitBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Оформление...');
+        
+        $.ajax({
+            url: '/api/orders/create-from-cart/',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(formData),
+            success: function(response) {
+                // Перенаправляем на страницу успешного оформления
+                window.location.href = `/order-success/${response.id}/`;
+            },
+            error: function(xhr) {
+                let errorMessage = 'Ошибка при оформлении заказа';
+                if (xhr.responseJSON && xhr.responseJSON.detail) {
+                    errorMessage = xhr.responseJSON.detail;
+                }
+                showAlert(errorMessage, 'danger');
+                $submitBtn.prop('disabled', false).text('Оформить заказ');
+            }
+        });
+    });
+    
+    // Инициализация
+    loadCartForCheckout();
+});
+</script>
+{% endblock %}

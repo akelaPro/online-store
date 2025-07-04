@@ -1,15 +1,22 @@
 from django.shortcuts import get_object_or_404
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
 from api.models import Product, Cart, CartItem
 from api.models.category.models import Category
+from api.models.order.models import Order
+from api.models.orderItem.models import OrderItem
 from api.serializers import ProductSerializer, CartSerializer, CartItemSerializer
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.filters import SearchFilter
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.response import Response
-
 from api.serializers.category_serializer import CategorySerializer
+from api.serializers.order_serializer import OrderSerializer
+from rest_framework.decorators import action
+
+
+
+
 
 class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
@@ -93,3 +100,59 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer 
     permission_classes = [IsAuthenticatedOrReadOnly]
+
+
+
+
+class OrderViewSet(viewsets.ModelViewSet):
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'post', 'head', 'options']
+
+    def get_queryset(self):
+        return Order.objects.filter(user=self.request.user).prefetch_related('items')
+
+    @action(detail=False, methods=['post'], url_path='create-from-cart')
+    def create_from_cart(self, request):
+        """
+        Создает заказ из текущей корзины пользователя
+        """
+        cart = Cart.objects.get_or_create(user=request.user)[0]
+        cart_items = CartItem.objects.filter(cart=cart).select_related('product')
+        
+        if not cart_items.exists():
+            return Response(
+                {"detail": "Корзина пуста"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Создаем заказ
+        order = Order.objects.create(
+            user=request.user,
+            shipping_address=request.data.get('shipping_address'),
+            payment_method=request.data.get('payment_method'),
+            phone_number=request.data.get('phone_number'),
+            email=request.data.get('email', request.user.email),
+            comment=request.data.get('comment', ''),
+            status='created'
+        )
+
+        # Добавляем товары в заказ
+        order_items = []
+        for item in cart_items:
+            order_items.append(OrderItem(
+                order=order,
+                product=item.product,
+                quantity=item.quantity,
+                price=item.price
+            ))
+        
+        OrderItem.objects.bulk_create(order_items)
+        
+        # Очищаем корзину
+        cart_items.delete()
+        cart.update_total_price()
+
+        # Сериализуем и возвращаем ответ
+        serializer = self.get_serializer(order)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
