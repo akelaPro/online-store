@@ -280,23 +280,25 @@ $(document).ready(function() {
     $('#logout-btn').on('click', function(e) {
         e.preventDefault();
         
+        // Сначала очищаем куки на клиенте
+        deleteCookie('access_token');
+        deleteCookie('refresh_token');
+        
+        // Затем делаем запрос на сервер
         $.ajax({
             url: '/api/auth/logout/',
             type: 'POST',
             headers: {
-                'X-CSRFToken': getCSRFToken() // Используем новую функцию для получения CSRF
+                'X-CSRFToken': getCSRFToken()
             },
             success: function() {
-                deleteCookie('access_token');
-                deleteCookie('refresh_token');
+                // Принудительно обновляем страницу
                 window.location.href = '/login/';
             },
             error: function(xhr) {
                 console.error('Logout error:', xhr);
-                deleteCookie('access_token');
-                deleteCookie('refresh_token');
+                // Все равно перенаправляем на страницу входа
                 window.location.href = '/login/';
             }
         });
-    });
-});
+    })});

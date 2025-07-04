@@ -60,6 +60,12 @@ class JWTAuthMiddleware:
 
     def _handle_missing_token(self, request):
         logger.warning(f"Missing token for path: {request.path}")
+        
+        # Если есть сессия - разлогиниваем
+        if request.user.is_authenticated:
+            from django.contrib.auth import logout
+            logout(request)
+            
         if request.path.startswith('/api/'):
             return JsonResponse(
                 {'error': 'Authentication required'}, 

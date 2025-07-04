@@ -3,7 +3,7 @@ from rest_framework_nested import routers
 from rest_framework.routers import DefaultRouter
 from api.views import ProductViewSet, CartViewSet, CartItemViewSet
 from api.views.Base_views import CategoryViewSet
-from api.views.auth import AuthCheckView, CookieTokenObtainPairView, CookieTokenRefreshView, RegisterView, logout_view
+from api.views.auth import AuthCheckView, CookieTokenObtainPairView, CookieTokenRefreshView, LogoutView, RegisterView
 
 
 
@@ -31,7 +31,7 @@ urlpatterns = [
 
     # Кастомные эндпоинты
     path('auth/register/', RegisterView.as_view(), name='register'),             # Регистрация
-    path('auth/logout/', logout_view, name='logout'),                   # Выход
+    path('auth/logout/', LogoutView.as_view(), name='logout'),                   # Выход
     path('check_auth/', AuthCheckView.as_view(), name='check_auth'),              # Проверка аутентификации
 ]
 

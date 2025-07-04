@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    #'rest_framework_simplejwt.token_blacklist'
     'api',
     'frontend',
     'rest_framework_simplejwt',
@@ -163,7 +164,7 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=1),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "ROTATE_REFRESH_TOKENS": False,
-    "BLACKLIST_AFTER_ROTATION": False,
+    "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": False,
 
     "ALGORITHM": "HS256",
@@ -230,34 +231,26 @@ CSRF_TRUSTED_ORIGINS = [
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{',
-        },
-    },
     'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
         'file': {
+            'level': 'DEBUG',  # Уровень логирования
             'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs/drf.log'),
-            'formatter': 'verbose',
-            'encoding': 'utf-8',
+            'filename': os.path.join(BASE_DIR, 'logs/drf.log'),  # Путь к файлу логов
+        },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',  # Логирование в консоль
         },
     },
     'loggers': {
-        '': {
-            'handlers': ['console', 'file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
+        'django': {
+            'handlers': ['file'],
+            'level': 'DEBUG',
             'propagate': True,
         },
-        'django.request': {
-            'handlers': ['console', 'file'],
+        'api': {  # Логгер для вашего приложения API
+            'handlers': ['file'],
             'level': 'DEBUG',
-            'propagate': False,
         },
     },
 }
