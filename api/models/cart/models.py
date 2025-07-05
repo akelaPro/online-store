@@ -13,6 +13,12 @@ class Cart(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
 
+
+    def update_total_price(self):
+        """Обновляет общую стоимость корзины"""
+        self.total_price = sum(item.price * item.quantity for item in self.items.all())
+        self.save()
+
     def __str__(self):
         return f"Корзина {self.user.email}"
 

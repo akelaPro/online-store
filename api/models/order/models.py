@@ -1,6 +1,15 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 from core import settings
+from django.core.validators import RegexValidator
+
+
+
+
+phone_validator = RegexValidator(
+        regex=r'^\+?1?\d{9,15}$',
+        message="Номер телефона должен быть в формате: '+999999999'. Допускается до 15 цифр."
+    )
 
 
 class Order(models.Model):
@@ -44,8 +53,16 @@ class Order(models.Model):
         choices=PAYMENT_METHOD_CHOICES,
         verbose_name="Способ оплаты"
     )
-    phone_number = models.CharField(max_length=20, verbose_name="Номер телефона")
-    email = models.EmailField(verbose_name="Email")
+    phone_number = models.CharField(
+    max_length=20,
+    verbose_name="Номер телефона",
+    default="",  # пустая строка как временное значение
+    blank=False  # обязательно для новых записей
+)
+    email = models.EmailField(
+    verbose_name="Email",
+    default="user@example.com"  
+)
     comment = models.TextField(blank=True, null=True, verbose_name="Комментарий к заказу")
 
     def __str__(self):
@@ -59,3 +76,6 @@ class Order(models.Model):
     def update_total_price(self):
         self.total_price = sum(item.price * item.quantity for item in self.items.all())
         self.save()
+
+
+    

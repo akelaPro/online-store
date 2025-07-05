@@ -114,9 +114,6 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='create-from-cart')
     def create_from_cart(self, request):
-        """
-        Создает заказ из текущей корзины пользователя
-        """
         cart = Cart.objects.get_or_create(user=request.user)[0]
         cart_items = CartItem.objects.filter(cart=cart).select_related('product')
         
@@ -126,6 +123,9 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Рассчитываем общую сумму
+        total_price = sum(item.price * item.quantity for item in cart_items)
+
         # Создаем заказ
         order = Order.objects.create(
             user=request.user,
@@ -134,25 +134,28 @@ class OrderViewSet(viewsets.ModelViewSet):
             phone_number=request.data.get('phone_number'),
             email=request.data.get('email', request.user.email),
             comment=request.data.get('comment', ''),
-            status='created'
+            status='created',
+            total_price=total_price
         )
 
-        # Добавляем товары в заказ
-        order_items = []
-        for item in cart_items:
-            order_items.append(OrderItem(
+        # Переносим товары из корзины в заказ
+        order_items = [
+            OrderItem(
                 order=order,
                 product=item.product,
                 quantity=item.quantity,
                 price=item.price
-            ))
+            ) for item in cart_items
+        ]
         
         OrderItem.objects.bulk_create(order_items)
         
         # Очищаем корзину
         cart_items.delete()
-        cart.update_total_price()
 
-        # Сериализуем и возвращаем ответ
+        # Если нужно обновить общую сумму корзины (после очистки)
+        if hasattr(cart, 'update_total_price'):
+            cart.update_total_price()
+
         serializer = self.get_serializer(order)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
