@@ -3,7 +3,7 @@ from rest_framework_nested import routers
 from rest_framework.routers import DefaultRouter
 from api.views import ProductViewSet, CartViewSet, CartItemViewSet
 from api.views.Base_views import CategoryViewSet, OrderViewSet
-from api.views.auth import AuthCheckView, CookieTokenObtainPairView, CookieTokenRefreshView, LogoutView, RegisterView
+from api.views.auth import AuthCheckView, CookieTokenObtainPairView, CookieTokenRefreshView, LogoutView, RegistrationAPIView
 
 
 
@@ -31,7 +31,7 @@ urlpatterns = [
     #path('auth/jwt/verify/', TokenVerifyView.as_view(), name='jwt-verify'),      # Проверка токена -  не обязателен при такой схеме
 
     # Кастомные эндпоинты
-    path('auth/register/', RegisterView.as_view(), name='register'),             # Регистрация
+    path('auth/register/', RegistrationAPIView.as_view(), name='register'),             # Регистрация
     path('auth/logout/', LogoutView.as_view(), name='logout'),                   # Выход
     path('check_auth/', AuthCheckView.as_view(), name='check_auth'),              # Проверка аутентификации
 ]

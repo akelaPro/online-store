@@ -6,40 +6,24 @@ from rest_framework import status
 from django.http import HttpResponse
 from django.contrib.auth import get_user_model
 from django.views.decorators.csrf import ensure_csrf_cookie
+from rest_framework import generics, permissions
 
+from api.serializers.registerSerializer import RegistrationSerializer
 
 
 User = get_user_model()
 
-class RegisterView(APIView):
-    def post(self, request):
-        email = request.data.get('email')
-        username = request.data.get('username')
-        password = request.data.get('password')
-        password_confirm = request.data.get('password_confirm')
+class RegistrationAPIView(generics.CreateAPIView):
+    queryset = get_user_model().objects.all()
+    serializer_class = RegistrationSerializer
+    permission_classes = [permissions.AllowAny]  # Разрешить любому пользователю регистрироваться
 
-        if password != password_confirm:
-            return Response(
-                {'error': 'Пароли не совпадают'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if User.objects.filter(email=email).exists():
-            return Response(
-                {'error': 'Пользователь с таким email уже существует'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        user = User.objects.create_user(
-            username=username,
-            email=email,
-            password=password
-        )
-
-        return Response(
-            {'status': 'Пользователь успешно создан'},
-            status=status.HTTP_201_CREATED
-        )
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 class CookieTokenObtainPairView(TokenObtainPairView):
