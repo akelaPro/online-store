@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from api.serializers.category_serializer import CategorySerializer
 from api.serializers.order_serializer import OrderSerializer
 from rest_framework.decorators import action
-
+from api.tasks1 import send_order_confirmation_email
 
 
 
@@ -158,4 +158,6 @@ class OrderViewSet(viewsets.ModelViewSet):
             cart.update_total_price()
 
         serializer = self.get_serializer(order)
+
+        send_order_confirmation_email.delay(order.id)
         return Response(serializer.data, status=status.HTTP_201_CREATED)

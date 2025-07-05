@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Подтверждение заказа</title>
+</head>
+<body>
+    <h2>Спасибо за ваш заказ!</h2>
+    <p>Номер заказа: <strong>#{{ order.id }}</strong></p>
+    <p>Дата: {{ order.created_at|date:"d.m.Y H:i" }}</p>
+    <p>Сумма: {{ order.total_price }} руб.</p>
+    
+    <h3>Состав заказа:</h3>
+    <ul>
+        {% for item in items %}
+        <li>{{ item.product.title }} - {{ item.quantity }} x {{ item.price }} руб.</li>
+        {% endfor %}
+    </ul>
+    
+    <p>Статус заказа: {{ order.get_status_display }}</p>
+    
+    <p>С уважением,<br>Команда магазина</p>
+</body>
+</html>

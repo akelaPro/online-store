@@ -85,8 +85,32 @@ $(document).ready(function() {
         return re.test(email);
     }
 
+    // Функция для автоматического входа
+    function autoLogin(email, password) {
+        return new Promise((resolve, reject) => {
+            $.ajax({
+                url: '/api/auth/jwt/create/',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    email: email,
+                    password: password
+                }),
+                success: function(response) {
+                    // Сохраняем токены в куки
+                    document.cookie = `access_token=${response.access}; path=/; Secure; SameSite=Lax`;
+                    document.cookie = `refresh_token=${response.refresh}; path=/; Secure; SameSite=Lax`;
+                    resolve(true);
+                },
+                error: function(xhr) {
+                    reject(new Error('Ошибка автоматического входа'));
+                }
+            });
+        });
+    }
+
     // Обработка отправки формы
-    $('#register-form').on('submit', function(e) {
+    $('#register-form').on('submit', async function(e) {
         e.preventDefault();
         
         // Сбрасываем состояния валидации
@@ -127,67 +151,70 @@ $(document).ready(function() {
         $submitBtn.prop('disabled', true);
         $submitBtn.find('.spinner-border').removeClass('d-none');
 
-        // Создаем FormData
-        const formData = new FormData();
-        formData.append('email', email);
-        if (username) {
-            formData.append('username', username);
-        }
-        formData.append('password', password);
-        formData.append('password2', password2);
-        if (avatarFile) {
-            if (avatarFile.size > 2 * 1024 * 1024) {
-                showAlert('Размер файла не должен превышать 2MB', 'danger');
-                $submitBtn.prop('disabled', false);
-                $submitBtn.find('.spinner-border').addClass('d-none');
-                return;
+        try {
+            // Создаем FormData
+            const formData = new FormData();
+            formData.append('email', email);
+            if (username) {
+                formData.append('username', username);
             }
-            formData.append('avatar', avatarFile);
-        }
-
-        // Отправляем запрос
-        $.ajax({
-            url: '/api/auth/register/',
-            type: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
-            headers: {
-                'X-CSRFToken': getCSRFToken()
-            },
-            success: function(response) {
-                showAlert('Регистрация прошла успешно! Вы будете перенаправлены на страницу входа.', 'success');
-                setTimeout(() => {
-                    window.location.href = "{% url 'frontend:login' %}";
-                }, 3000);
-            },
-            error: function(xhr) {
-                let errorMessage = 'Произошла ошибка при регистрации';
-                
-                if (xhr.responseJSON) {
-                    if (xhr.responseJSON.email) {
-                        errorMessage = xhr.responseJSON.email[0];
-                        $('#email').addClass('is-invalid');
-                    } else if (xhr.responseJSON.username) {
-                        errorMessage = xhr.responseJSON.username[0];
-                        $('#username').addClass('is-invalid');
-                    } else if (xhr.responseJSON.password) {
-                        errorMessage = xhr.responseJSON.password[0];
-                        $('#password1').addClass('is-invalid');
-                    } else if (xhr.responseJSON.detail) {
-                        errorMessage = xhr.responseJSON.detail;
-                    } else if (xhr.responseJSON.avatar) {
-                        errorMessage = xhr.responseJSON.avatar[0];
-                    }
+            formData.append('password', password);
+            formData.append('password2', password2);
+            if (avatarFile) {
+                if (avatarFile.size > 2 * 1024 * 1024) {
+                    throw new Error('Размер файла не должен превышать 2MB');
                 }
-                
-                showAlert(errorMessage, 'danger');
-            },
-            complete: function() {
-                $submitBtn.prop('disabled', false);
-                $submitBtn.find('.spinner-border').addClass('d-none');
+                formData.append('avatar', avatarFile);
             }
-        });
+
+            // 1. Отправляем запрос на регистрацию
+            const registerResponse = await $.ajax({
+                url: '/api/auth/register/',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                }
+            });
+
+            // 2. После успешной регистрации выполняем автоматический вход
+            await autoLogin(email, password);
+            
+            // 3. Перенаправляем на главную страницу
+            showAlert('Регистрация и вход выполнены успешно!', 'success');
+            setTimeout(() => {
+                window.location.href = "/"; // Перенаправляем на главную
+            }, 1500);
+
+        } catch (error) {
+            let errorMessage = 'Произошла ошибка при регистрации';
+            
+            if (error.responseJSON) {
+                if (error.responseJSON.email) {
+                    errorMessage = error.responseJSON.email[0];
+                    $('#email').addClass('is-invalid');
+                } else if (error.responseJSON.username) {
+                    errorMessage = error.responseJSON.username[0];
+                    $('#username').addClass('is-invalid');
+                } else if (error.responseJSON.password) {
+                    errorMessage = error.responseJSON.password[0];
+                    $('#password1').addClass('is-invalid');
+                } else if (error.responseJSON.detail) {
+                    errorMessage = error.responseJSON.detail;
+                } else if (error.responseJSON.avatar) {
+                    errorMessage = error.responseJSON.avatar[0];
+                }
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+            
+            showAlert(errorMessage, 'danger');
+        } finally {
+            $submitBtn.prop('disabled', false);
+            $submitBtn.find('.spinner-border').addClass('d-none');
+        }
     });
 
     // Реальная валидация при вводе
