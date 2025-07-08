@@ -1,5 +1,5 @@
 $(document).ready(function() {
-    // Общие функции для работы с JWT и куками
+    // Общие функции для работы с JWT
     function setCookie(name, value, days) {
         let expires = "";
         if (days) {
@@ -9,69 +9,6 @@ $(document).ready(function() {
         }
         document.cookie = name + "=" + (value || "") + expires + "; path=/; Secure; SameSite=Lax";
     }
-
-
-
-
-    if (window.location.pathname !== '/chat/' && typeof userAuthenticated !== 'undefined' && userAuthenticated) {
-        const notificationSocket = new WebSocket(
-            'ws://' + window.location.host + '/ws/chat/'
-        );
-
-        notificationSocket.onmessage = function(e) {
-            const data = JSON.parse(e.data);
-            
-            // Показываем уведомление только если сообщение от администратора
-            if (data.is_admin && !document.hasFocus()) {
-                showNotification(data.sender, data.message);
-            }
-        };
-
-        function showNotification(sender, message) {
-            if (Notification.permission === "granted") {
-                new Notification(`Новое сообщение от ${sender}`, {
-                    body: message,
-                    icon: '/static/frontend/img/notification-icon.png'
-                });
-            } else if (Notification.permission !== "denied") {
-                Notification.requestPermission().then(permission => {
-                    if (permission === "granted") {
-                        new Notification(`Новое сообщение от ${sender}`, {
-                            body: message,
-                            icon: '/static/frontend/img/notification-icon.png'
-                        });
-                    }
-                });
-            }
-            
-            // Также можно показать уведомление в интерфейсе
-            showToastNotification(sender, message);
-        }
-
-        function showToastNotification(sender, message) {
-            const toastHtml = `
-                <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
-                    <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
-                        <div class="toast-header">
-                            <strong class="me-auto">Новое сообщение от ${sender}</strong>
-                            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-                        </div>
-                        <div class="toast-body">
-                            ${message}
-                            <div class="mt-2 pt-2 border-top">
-                                <a href="/chat/" class="btn btn-primary btn-sm">Открыть чат</a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            $('body').append(toastHtml);
-        }
-    }
-
-
-
 
     function getCookie(name) {
         const nameEQ = name + "=";
@@ -86,15 +23,6 @@ $(document).ready(function() {
 
     function deleteCookie(name) {
         document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-    }
-
-    // Новая функция для получения CSRF токена из куки
-    function getCSRFToken() {
-        const cookieValue = document.cookie
-            .split('; ')
-            .find(row => row.startsWith('csrftoken='))
-            ?.split('=')[1];
-        return cookieValue || '';
     }
 
     async function checkAuth() {
@@ -112,20 +40,23 @@ $(document).ready(function() {
         }
     }
 
+    // Обработка CSRF
+    function getCSRFToken() {
+        return $('[name=csrfmiddlewaretoken]').val();
+    }
+
     // Настройка AJAX запросов
     $.ajaxSetup({
         beforeSend: function(xhr, settings) {
-            // Добавляем CSRF токен
             if (!(/^http:.*/.test(settings.url) || /^https:.*/.test(settings.url))) {
-                xhr.setRequestHeader("X-CSRFToken", getCSRFToken());
-            }
-            
-            // Добавляем JWT токен из куки в заголовок
-            const accessToken = getCookie('access_token');
-            if (accessToken && !settings.noAuth) {
-                xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
-            }
-        },
+            xhr.setRequestHeader("X-CSRFToken", getCSRFToken());
+        }
+    
+        const accessToken = getCookie('access_token');
+        if (accessToken && !settings.noAuth) {
+            xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+        }
+    },
         error: function(xhr, textStatus, errorThrown) {
             if (xhr.status === 401 && !xhr.config._retry) {
                 const refreshToken = getCookie('refresh_token');
@@ -340,129 +271,27 @@ $(document).ready(function() {
         });
     });
 
-
-    function checkoutFromCart() {
-        if (!checkAuth()) {
-            window.location.href = '/login/?next=/checkout/';
-            return;
-        }
-    
-        // Проверяем, что в корзине есть товары
-        $.get('/api/cart/', function(cart) {
-            if (!cart.items || cart.items.length === 0) {
-                showAlert('Ваша корзина пуста. Добавьте товары перед оформлением заказа.', 'warning');
-                return;
-            }
-            
-            window.location.href = '/checkout/';
-        });
-    }
-    
-    // Обновление кнопки в корзине
-    $(document).on('cart-loaded', function() {
-        $('.checkout-btn').off('click').on('click', checkoutFromCart);
-    });
-    
-    // Инициализация при загрузке
-    $(document).ready(function() {
-        // Обработчик для страницы заказов
-        if ($('#orders-list').length) {
-            loadUserOrders();
-        }
-        
-        // Обработчик для страницы деталей заказа
-        if ($('#order-detail').length) {
-            loadOrderDetail();
-        }
-    });
-    
-    // Загрузка списка заказов пользователя
-    function loadUserOrders() {
-        $.get('/api/orders/', function(orders) {
-            const $container = $('#orders-list');
-            $container.empty();
-            
-            if (orders.length === 0) {
-                $container.html('<div class="alert alert-info">У вас пока нет заказов</div>');
-                return;
-            }
-            
-            let html = '<div class="list-group">';
-            
-            orders.forEach(order => {
-                html += `
-                    <a href="/orders/${order.id}/" class="list-group-item list-group-item-action">
-                        <div class="d-flex w-100 justify-content-between">
-                            <h5 class="mb-1">Заказ #${order.id}</h5>
-                            <small>${order.status}</small>
-                        </div>
-                        <p class="mb-1">${order.total_price} руб.</p>
-                        <small>${new Date(order.created_at).toLocaleDateString()}</small>
-                    </a>`;
-            });
-            
-            html += '</div>';
-            $container.html(html);
-        }).fail(function() {
-            $('#orders-list').html('<div class="alert alert-danger">Ошибка загрузки заказов</div>');
-        });
-    }
-    
-    // Загрузка деталей конкретного заказа
-    function loadOrderDetail(orderId) {
-        $.get(`/api/orders/${orderId}/`, function(order) {
-            // Заполняем данные на странице
-            $('#order-number').text(order.id);
-            $('#order-status').text(order.status);
-            $('#order-date').text(new Date(order.created_at).toLocaleString());
-            $('#order-total').text(order.total_price + ' руб.');
-            
-            // Заполняем таблицу товаров
-            const $itemsTable = $('#order-items-table tbody');
-            $itemsTable.empty();
-            
-            order.items.forEach(item => {
-                $itemsTable.append(`
-                    <tr>
-                        <td>${item.product.title}</td>
-                        <td>${item.quantity}</td>
-                        <td>${item.price} руб.</td>
-                        <td>${(item.price * item.quantity).toFixed(2)} руб.</td>
-                    </tr>
-                `);
-            });
-        }).fail(function() {
-            $('#order-detail').html('<div class="alert alert-danger">Ошибка загрузки данных заказа</div>');
-        });
-    }
-
-    $(document).on('cart-loaded', function() {
-        $('.checkout-btn').off('click').on('click', checkoutFromCart);
-    });
-
-
     $('#logout-btn').on('click', function(e) {
         e.preventDefault();
         
-        // Сначала очищаем куки на клиенте
-        deleteCookie('access_token');
-        deleteCookie('refresh_token');
-        
-        // Затем делаем запрос на сервер
         $.ajax({
             url: '/api/auth/logout/',
             type: 'POST',
             headers: {
-                'X-CSRFToken': getCSRFToken()
+                'X-CSRFToken': getCSRFToken() // Явно добавляем CSRF токен
             },
             success: function() {
-                // Принудительно обновляем страницу
-                window.location.href = '/login/';
+                deleteCookie('access_token');
+                deleteCookie('refresh_token');
+                window.location.href = '/';
             },
             error: function(xhr) {
                 console.error('Logout error:', xhr);
-                // Все равно перенаправляем на страницу входа
-                window.location.href = '/login/';
+                // Даже при ошибке очищаем куки
+                deleteCookie('access_token');
+                deleteCookie('refresh_token');
+                window.location.href = '/';
             }
         });
-    })});
+    });
+});

@@ -2,79 +2,61 @@ import json
 import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from django.core.cache import cache
 from django.contrib.auth.models import AnonymousUser
+from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.user = self.scope["user"]
+        self.user = self.scope.get("user")
         
+        # Проверяем аутентификацию
         if isinstance(self.user, AnonymousUser):
-            logger.warning("Anonymous connection attempt rejected")
-            await self.close()
+            logger.warning("Rejecting anonymous connection")
+            await self.close(code=4001)  # Кастомный код для ошибки аутентификации
             return
 
-        self.room_name = 'admin_chat'
-        self.room_group_name = f'chat_{self.room_name}'
-        self.user_cache_key = f"user_{self.user.id}_ws"
-
-        # Добавляем в группу
-        await self.channel_layer.group_add(
-            self.room_group_name,
-            self.channel_name
-        )
+        self.room_name = "admin_chat"
+        self.room_group_name = f"chat_{self.room_name}"
         
-        await self.accept()
-        logger.info(f"User {self.user.username} connected to chat")
-
-    async def disconnect(self, close_code):
         try:
-            await self.channel_layer.group_discard(
+            # Добавляем в группу
+            await self.channel_layer.group_add(
                 self.room_group_name,
                 self.channel_name
             )
-            logger.info(f"User {self.user.username} disconnected")
-        except Exception as e:
-            logger.error(f"Disconnect error: {e}")
-
-    async def receive(self, text_data):
-        try:
-            data = json.loads(text_data)
-            message = data.get('message')
+            await self.accept()
+            logger.info(f"User {self.user.username} connected to chat")
             
-            if not message:
-                return
-
-            # Отправляем сообщение в группу
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {
-                    "type": "chat.message",
-                    "message": message,
-                    "sender_id": self.user.id,
-                    "sender_name": self.user.username,
-                }
-            )
+            # Кешируем данные пользователя
+            await self.cache_user_data()
             
-            # Сохраняем в базу
-            await self.save_message(self.user.id, message)
-
-        except json.JSONDecodeError:
-            logger.error("Invalid JSON received")
         except Exception as e:
-            logger.error(f"Receive error: {e}")
+            logger.error(f"Connection error: {e}")
+            await self.close(code=4002)  # Кастомный код для ошибки соединения
 
-    async def chat_message(self, event):
-        try:
-            await self.send(text_data=json.dumps({
-                "message": event["message"],
-                "sender": event["sender_name"],
-                "is_admin": await self.is_admin(event["sender_id"])
-            }))
-        except Exception as e:
-            logger.error(f"Message send error: {e}")
+    async def disconnect(self, close_code):
+        # Проверяем, что атрибуты существуют перед попыткой их использования
+        if hasattr(self, "room_group_name") and hasattr(self, "channel_name"):
+            try:
+                await self.channel_layer.group_discard(
+                    self.room_group_name,
+                    self.channel_name
+                )
+                logger.info(f"User {self.user.username} disconnected, code: {close_code}")
+            except Exception as e:
+                logger.error(f"Disconnect error: {e}")
+
+    @database_sync_to_async
+    def cache_user_data(self):
+        """Кеширует данные пользователя для уменьшения запросов к БД"""
+        cache_key = f"user_{self.user.id}_ws"
+        cache.set(cache_key, {
+            'id': self.user.id,
+            'username': self.user.username,
+            'is_staff': self.user.is_staff
+        }, timeout=3600)
 
     @database_sync_to_async
     def save_message(self, user_id, message):
