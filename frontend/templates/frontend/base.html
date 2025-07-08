@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="{% static 'frontend/css/styles.css' %}">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="{% static 'frontend/js/main.js' %}"></script>
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
     {% include 'frontend/includes/_header.html' %}
@@ -20,5 +21,6 @@
     {% include 'frontend/includes/_footer.html' %}
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -1,0 +1,134 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}Чат с поддержкой{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="mb-0">Чат с поддержкой</h2>
+        </div>
+        <div class="card-body">
+            <div id="chat-container" style="height: 400px; overflow-y: scroll; margin-bottom: 20px; border: 1px solid #ddd; padding: 10px;">
+                <!-- Сообщения будут загружены здесь -->
+            </div>
+            <div class="input-group">
+                <input type="text" id="chat-message-input" class="form-control" placeholder="Введите сообщение...">
+                <button class="btn btn-primary" id="chat-message-submit">Отправить</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let chatSocket;
+let reconnectAttempts = 0;
+const maxReconnectAttempts = 5;
+
+function connectWebSocket() {
+    if (!userAuthenticated) {
+        console.log("User not authenticated");
+        return;
+    }
+
+    chatSocket = new WebSocket(
+        'ws://' + window.location.host + '/ws/chat/'
+    );
+
+    chatSocket.onopen = function(e) {
+        console.log("WebSocket connection established");
+        reconnectAttempts = 0;
+    };
+
+    chatSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        // Обработка сообщения
+    };
+
+    chatSocket.onclose = function(e) {
+        console.log("WebSocket connection closed", e);
+        if (e.code !== 1000 && reconnectAttempts < maxReconnectAttempts) {
+            reconnectAttempts++;
+            const delay = Math.min(1000 * reconnectAttempts, 5000);
+            console.log(`Reconnecting in ${delay}ms...`);
+            setTimeout(connectWebSocket, delay);
+        }
+    };
+
+    chatSocket.onerror = function(e) {
+        console.error("WebSocket error:", e);
+    };
+}
+
+// Инициализация при загрузке
+$(document).ready(function() {
+    connectWebSocket();
+    
+    // Отправка сообщения
+    $('#chat-message-submit').click(function() {
+        if (chatSocket.readyState === WebSocket.OPEN) {
+            const message = $('#chat-message-input').val();
+            if (message.trim()) {
+                chatSocket.send(JSON.stringify({
+                    'message': message
+                }));
+                $('#chat-message-input').val('');
+            }
+        } else {
+            console.warn("WebSocket not ready");
+        }
+    });
+});
+
+        // Отправка сообщения по нажатию Enter
+        $('#chat-message-input').keyup(function(e) {
+            if (e.keyCode === 13) {  // Enter key
+                $('#chat-message-submit').click();
+            }
+        });
+
+        // Загрузка истории сообщений
+        $.get('/api/chat/', function(data) {
+            data.forEach(function(msg) {
+                const messageElement = createMessageElement(msg.sender, msg.message, false);
+                $('#chat-container').append(messageElement);
+            });
+            $('#chat-container').scrollTop($('#chat-container')[0].scrollHeight);
+        });
+
+        // Функция для создания элемента сообщения
+        function createMessageElement(sender, message, isAdmin) {
+            const alignClass = isAdmin ? 'text-end' : 'text-start';
+            const bgClass = isAdmin ? 'bg-light' : 'bg-primary text-white';
+            return `
+                <div class="mb-2 ${alignClass}">
+                    <div class="d-inline-block p-2 rounded ${bgClass}">
+                        <strong>${sender}:</strong> ${message}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Функция для показа уведомления
+        function showNotification(sender, message) {
+            if (Notification.permission === "granted") {
+                new Notification(`Новое сообщение от ${sender}`, {
+                    body: message,
+                    icon: '/static/frontend/img/notification-icon.png'
+                });
+            } else if (Notification.permission !== "denied") {
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") {
+                        new Notification(`Новое сообщение от ${sender}`, {
+                            body: message,
+                            icon: '/static/frontend/img/notification-icon.png'
+                        });
+                    }
+                });
+            }
+        }
+    ;
+</script>
+{% endblock %}

@@ -10,6 +10,69 @@ $(document).ready(function() {
         document.cookie = name + "=" + (value || "") + expires + "; path=/; Secure; SameSite=Lax";
     }
 
+
+
+
+    if (window.location.pathname !== '/chat/' && typeof userAuthenticated !== 'undefined' && userAuthenticated) {
+        const notificationSocket = new WebSocket(
+            'ws://' + window.location.host + '/ws/chat/'
+        );
+
+        notificationSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            
+            // Показываем уведомление только если сообщение от администратора
+            if (data.is_admin && !document.hasFocus()) {
+                showNotification(data.sender, data.message);
+            }
+        };
+
+        function showNotification(sender, message) {
+            if (Notification.permission === "granted") {
+                new Notification(`Новое сообщение от ${sender}`, {
+                    body: message,
+                    icon: '/static/frontend/img/notification-icon.png'
+                });
+            } else if (Notification.permission !== "denied") {
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") {
+                        new Notification(`Новое сообщение от ${sender}`, {
+                            body: message,
+                            icon: '/static/frontend/img/notification-icon.png'
+                        });
+                    }
+                });
+            }
+            
+            // Также можно показать уведомление в интерфейсе
+            showToastNotification(sender, message);
+        }
+
+        function showToastNotification(sender, message) {
+            const toastHtml = `
+                <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+                    <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="toast-header">
+                            <strong class="me-auto">Новое сообщение от ${sender}</strong>
+                            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                        <div class="toast-body">
+                            ${message}
+                            <div class="mt-2 pt-2 border-top">
+                                <a href="/chat/" class="btn btn-primary btn-sm">Открыть чат</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            $('body').append(toastHtml);
+        }
+    }
+
+
+
+
     function getCookie(name) {
         const nameEQ = name + "=";
         const ca = document.cookie.split(';');

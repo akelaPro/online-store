@@ -42,3 +42,7 @@ def order_detail_view(request, order_id):
 @login_required
 def user_orders_view(request):
     return render(request, 'frontend/user_orders.html')
+
+@login_required
+def chat_view(request):
+    return render(request, 'frontend/chat.html')
