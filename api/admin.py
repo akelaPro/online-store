@@ -78,3 +78,23 @@ class ReviewAdmin(admin.ModelAdmin):
     date_hierarchy = 'created_at'
     list_per_page = 20
     raw_id_fields = ('product', 'user')
+
+
+@admin.register(ChatRoom)
+class CartAdmin(admin.ModelAdmin):
+    list_display = ('user', 'admin', 'is_active', 'created_at')
+    list_display_links = ('user',)
+    list_filter = ('created_at', 'is_active')
+    search_fields = ('user__email',)
+    list_per_page = 20
+    date_hierarchy = 'created_at'
+
+
+@admin.register(Message)
+class CartAdmin(admin.ModelAdmin):
+    list_display = ('room', 'sender', 'content', 'timestamp', 'is_read')
+    list_display_links = ('sender',)
+    list_filter = ('is_read', 'timestamp')
+    search_fields = ('sender__email',)
+    list_per_page = 20
+    date_hierarchy = 'timestamp'

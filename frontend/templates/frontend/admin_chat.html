@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Администраторский чат</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        .chat-room {
+            border: 1px solid #ccc;
+            margin: 10px;
+            padding: 10px;
+            cursor: pointer;
+        }
+        .chat-room.active {
+            background-color: #f0f0f0;
+        }
+        #chat-container {
+            display: flex;
+        }
+        #rooms-list {
+            width: 30%;
+        }
+        #chat-area {
+            width: 70%;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="rooms-list">
+            <h3>Активные чаты</h3>
+            <div id="rooms-container"></div>
+        </div>
+        <div id="chat-area">
+            <h3>Сообщения</h3>
+            <div id="chat-messages"></div>
+            <input type="text" id="chat-message-input" placeholder="Введите сообщение...">
+            <button id="chat-message-submit">Отправить</button>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            const userId = "{{ request.user.id }}";
+            let currentRoomId = null;
+            
+            // Подключаемся к администраторскому WebSocket
+            const adminSocket = new WebSocket(
+                'ws://' + window.location.host +
+                '/ws/admin/chat/'
+            );
+
+            // Обработчик входящих сообщений
+            adminSocket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                
+                if (data.type === 'new_room') {
+                    // Новый чат создан
+                    addRoom(data.room_id, data.user_id);
+                } else if (data.type === 'message') {
+                    // Новое сообщение
+                    if (data.room_id === currentRoomId) {
+                        addMessage(data.message, data.sender_id);
+                    }
+                }
+            };
+
+            // Добавление чат-комнаты в список
+            function addRoom(roomId, userId) {
+                const roomElement = $('<div>')
+                    .addClass('chat-room')
+                    .attr('data-room-id', roomId)
+                    .text('Чат с пользователем #' + userId)
+                    .click(function() {
+                        $('.chat-room').removeClass('active');
+                        $(this).addClass('active');
+                        loadRoom(roomId);
+                    });
+                
+                $('#rooms-container').append(roomElement);
+            }
+
+            // Загрузка комнаты
+            function loadRoom(roomId) {
+                currentRoomId = roomId;
+                $('#chat-messages').empty();
+                
+                // Загружаем историю сообщений через API
+                $.get(`/api/chat/rooms/${roomId}/messages/`, function(data) {
+                    data.forEach(function(message) {
+                        addMessage(message.content, message.sender.id);
+                    });
+                });
+            }
+
+            // Добавление сообщения в чат
+            function addMessage(message, senderId) {
+                const messageElement = $('<div>').addClass('message');
+                if (senderId == userId) {
+                    messageElement.addClass('sent');
+                } else {
+                    messageElement.addClass('received');
+                }
+                messageElement.text(message);
+                $('#chat-messages').append(messageElement);
+            }
+
+            // Отправка сообщения
+            $('#chat-message-submit').click(function() {
+                const messageInput = $('#chat-message-input');
+                const message = messageInput.val();
+                
+                if (message && currentRoomId) {
+                    adminSocket.send(JSON.stringify({
+                        'action': 'new_message',
+                        'message': message,
+                        'room_id': currentRoomId,
+                        'sender_id': userId
+                    }));
+                    addMessage(message, userId);
+                    messageInput.val('');
+                }
+            });
+
+            // Отправка при нажатии Enter
+            $('#chat-message-input').keyup(function(e) {
+                if (e.keyCode === 13) {
+                    $('#chat-message-submit').click();
+                }
+            });
+
+            // Загрузка активных чатов при старте
+            $.get('/api/chat/rooms/', function(data) {
+                data.forEach(function(room) {
+                    addRoom(room.id, room.user.id);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

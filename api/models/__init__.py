@@ -6,3 +6,4 @@ from api.models.order.models import *
 from api.models.orderItem.models import *
 from api.models.product.models import *
 from api.models.users.models import *
+from api.models.chat.models import *

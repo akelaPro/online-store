@@ -60,6 +60,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'api.middleware.JWTAuthMiddleware',
+    
 ]
 
 ROOT_URLCONF = 'core.urls'
@@ -292,5 +293,8 @@ CHANNEL_LAYERS = {
         'CONFIG': {
             "hosts": [('127.0.0.1', 6379)],
         },
+        'MIDDLEWARE': [
+            'api.websocket_middleware.JWTAuthWebsocketMiddleware',
+        ],
     },
 }

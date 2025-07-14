@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 from api.views import ProductViewSet, CartViewSet, CartItemViewSet
 from api.views.Base_views import CategoryViewSet, OrderViewSet
 from api.views.auth import AuthCheckView, CookieTokenObtainPairView, CookieTokenRefreshView, LogoutView, RegistrationAPIView
-from api.views.chat import ChatViewSet
+from api.views.chat import ChatRoomViewSet, MessageViewSet
 
 
 
@@ -16,7 +16,8 @@ router.register(r'products', ProductViewSet, basename='product')
 router.register(r'categories', CategoryViewSet, basename='category')
 router.register(r'cart', CartViewSet, basename='cart')
 router.register(r'orders', OrderViewSet, basename='order')
-router.register(r'chat', ChatViewSet, basename='chat')
+router.register(r'rooms', ChatRoomViewSet, basename='chatroom')
+router.register(r'messages', MessageViewSet, basename='message')
 cart_router = routers.NestedSimpleRouter(router, r'cart', lookup='cart')
 cart_router.register(r'items', CartItemViewSet, basename='cart-items')
 

@@ -1,79 +1,116 @@
 import json
-import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from django.contrib.auth.models import AnonymousUser
-from django.core.cache import cache
-
-logger = logging.getLogger(__name__)
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.user = self.scope.get("user")
-        
-        # Проверяем аутентификацию
-        if isinstance(self.user, AnonymousUser):
-            logger.warning("Rejecting anonymous connection")
-            await self.close(code=4001)  # Кастомный код для ошибки аутентификации
-            return
+        self.room_id = self.scope['url_route']['kwargs']['room_id']
+        self.room_group_name = f'chat_{self.room_id}'
 
-        self.room_name = "admin_chat"
-        self.room_group_name = f"chat_{self.room_name}"
-        
-        try:
-            # Добавляем в группу
-            await self.channel_layer.group_add(
-                self.room_group_name,
-                self.channel_name
-            )
-            await self.accept()
-            logger.info(f"User {self.user.username} connected to chat")
-            
-            # Кешируем данные пользователя
-            await self.cache_user_data()
-            
-        except Exception as e:
-            logger.error(f"Connection error: {e}")
-            await self.close(code=4002)  # Кастомный код для ошибки соединения
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
+        )
+        await self.accept()
 
     async def disconnect(self, close_code):
-        # Проверяем, что атрибуты существуют перед попыткой их использования
-        if hasattr(self, "room_group_name") and hasattr(self, "channel_name"):
-            try:
-                await self.channel_layer.group_discard(
-                    self.room_group_name,
-                    self.channel_name
-                )
-                logger.info(f"User {self.user.username} disconnected, code: {close_code}")
-            except Exception as e:
-                logger.error(f"Disconnect error: {e}")
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
 
-    @database_sync_to_async
-    def cache_user_data(self):
-        """Кеширует данные пользователя для уменьшения запросов к БД"""
-        cache_key = f"user_{self.user.id}_ws"
-        cache.set(cache_key, {
-            'id': self.user.id,
-            'username': self.user.username,
-            'is_staff': self.user.is_staff
-        }, timeout=3600)
-
-    @database_sync_to_async
-    def save_message(self, user_id, message):
-        from .models import ChatMessage
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        
-        user = User.objects.get(id=user_id)
-        ChatMessage.objects.create(sender=user, message=message)
-
-    @database_sync_to_async
-    def is_admin(self, user_id):
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        
+    async def receive(self, text_data):
         try:
-            user = User.objects.get(id=user_id)
-            return user.is_staff
-        except User.DoesNotExist:
-            return False
+            data = json.loads(text_data)
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'chat_message',
+                    'message': data['message'],
+                    'sender_id': data['sender_id']
+                }
+            )
+            await self.save_message(data['message'], data['sender_id'])
+        except Exception as e:
+            print('Error processing message:', e)
+
+    async def chat_message(self, event):
+        await self.send(text_data=json.dumps(event))
+
+    @database_sync_to_async
+    def save_message(self, message, sender_id):
+        from .models import ChatRoom, Message
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        
+        room = ChatRoom.objects.get(id=self.room_id)
+        sender = User.objects.get(id=sender_id)
+        Message.objects.create(
+            room=room,
+            sender=sender,
+            content=message
+        )
+
+class AdminChatConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.admin_group_name = 'admin_chat'
+
+        # Join admin group
+        await self.channel_layer.group_add(
+            self.admin_group_name,
+            self.channel_name
+        )
+
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        # Leave admin group
+        await self.channel_layer.group_discard(
+            self.admin_group_name,
+            self.channel_name
+        )
+
+    async def receive(self, text_data):
+        text_data_json = json.loads(text_data)
+        message = text_data_json.get('message')
+        room_id = text_data_json.get('room_id')
+        sender_id = text_data_json.get('sender_id')
+        action = text_data_json.get('action')
+
+        if action == 'new_message':
+            # Forward message to specific room
+            await self.channel_layer.group_send(
+                f'chat_{room_id}',
+                {
+                    'type': 'chat_message',
+                    'message': message,
+                    'sender_id': sender_id
+                }
+            )
+        elif action == 'room_created':
+            # Notify admin about new chat room
+            await self.channel_layer.group_send(
+                self.admin_group_name,
+                {
+                    'type': 'new_room_notification',
+                    'room_id': room_id,
+                    'user_id': sender_id
+                }
+            )
+
+    async def new_room_notification(self, event):
+        # Send notification about new chat room to admin
+        await self.send(text_data=json.dumps({
+            'type': 'new_room',
+            'room_id': event['room_id'],
+            'user_id': event['user_id']
+        }))
+
+    async def chat_message(self, event):
+        # Send message to admin
+        await self.send(text_data=json.dumps({
+            'type': 'message',
+            'message': event['message'],
+            'sender_id': event['sender_id'],
+            'room_id': self.room_id
+        }))

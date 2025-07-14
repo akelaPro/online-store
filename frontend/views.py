@@ -1,10 +1,11 @@
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404, render
 from django.views import View
 from django.views.generic import TemplateView
 from django.contrib.auth.decorators import login_required
+from api.models.chat.models import ChatRoom
 from api.models.order.models import Order
-
+from django.contrib import messages
 
 
 
@@ -45,4 +46,22 @@ def user_orders_view(request):
 
 @login_required
 def chat_view(request):
-    return render(request, 'frontend/chat.html')
+    try:
+        room = ChatRoom.get_or_create_for_user(request.user)  # Вызываем через класс
+        return render(request, 'frontend/chat.html', {
+            'room': room,
+            'request': request
+        })
+    except Exception as e:
+        print(f"Error in chat_view: {e}")
+        messages.error(request, f"Ошибка чата: {e}")
+        return render(request, 'frontend/chat.html', {
+            'error': str(e),
+            'request': request
+        })
+    
+
+@login_required
+def admin_chat_view(request):
+    return render(request, 'frontend/admin_chat.html')
+
