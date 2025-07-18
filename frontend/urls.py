@@ -14,6 +14,7 @@ urlpatterns = [
     path('orders/<int:order_id>/', order_detail_view, name='order_detail'),
     path('my-orders/', user_orders_view, name='user_orders'),
     path('chat/', chat_view, name='chat'),
-    path('admin/chat/', admin_chat_view, name='admin_chat'),
+    path('admin-chats/', admin_chat_list, name='admin_chat_list'),
+    path('admin-chats/<int:room_id>/', admin_chat_detail, name='admin_chat_detail'),
     
 ]

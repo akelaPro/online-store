@@ -6,7 +6,9 @@ from django.contrib.auth.decorators import login_required
 from api.models.chat.models import ChatRoom, Message
 from api.models.order.models import Order
 from django.contrib import messages
-
+from django.contrib.auth.decorators import user_passes_test
+from django.shortcuts import render, get_object_or_404
+from django.contrib.auth import get_user_model
 
 
 def home(request):
@@ -63,7 +65,28 @@ def chat_view(request):
         })
     
 
-@login_required
-def admin_chat_view(request):
-    return render(request, 'frontend/admin_chat.html')
+
+
+User = get_user_model()
+
+def is_admin(user):
+    return user.is_authenticated and user.is_staff
+
+@user_passes_test(is_admin)
+def admin_chat_list(request):
+    chats = ChatRoom.objects.all().order_by('-created_at')
+    return render(request, 'frontend/admin/admin_chat_list.html', {'chats': chats})
+
+@user_passes_test(is_admin)
+def admin_chat_detail(request, room_id):
+    room = get_object_or_404(ChatRoom, id=room_id)
+    messages = room.messages.all().order_by('timestamp')
+    
+    # Помечаем сообщения как прочитанные
+    room.messages.filter(is_read=False).exclude(sender=request.user).update(is_read=True)
+    
+    return render(request, 'frontend/admin/admin_chat_detail.html', {
+        'room': room,
+        'messages': messages,
+    })
 

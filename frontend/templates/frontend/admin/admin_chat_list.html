@@ -1,0 +1,137 @@
+{% extends 'frontend/base.html' %}
+
+{% block content %}
+<h1>Список чатов</h1>
+<div id="chat-list-container">
+    <div id="chat-list"></div>
+    <div id="loading-indicator">Загрузка чатов...</div>
+    <div id="error-message" style="color: red; display: none;"></div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chatListContainer = document.getElementById('chat-list');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const errorMessage = document.getElementById('error-message');
+
+    // Функция для форматирования даты
+    function formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleTimeString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+    }
+
+    // Функция для загрузки чатов
+    async function loadChats() {
+        try {
+            loadingIndicator.style.display = 'block';
+            errorMessage.style.display = 'none';
+            
+            const response = await fetch('/api/rooms/', {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Authorization': 'Bearer ' + localStorage.getItem('access_token')
+                }
+            });
+            
+            if (!response.ok) {
+                if (response.status === 401) {
+                    throw new Error('Требуется авторизация');
+                }
+                throw new Error('Ошибка загрузки чатов: ' + response.statusText);
+            }
+            
+            const chats = await response.json();
+            
+            if (chats.length === 0) {
+                chatListContainer.innerHTML = '<p>Нет активных чатов</p>';
+                return;
+            }
+            
+            let html = '';
+            chats.forEach(chat => {
+                // Получаем последнее сообщение
+                const lastMessage = chat.messages && chat.messages.length > 0 ? 
+                    chat.messages[chat.messages.length - 1] : null;
+                
+                // Определяем непрочитанные сообщения (только для админа)
+                const unreadCount = chat.messages ? 
+                    chat.messages.filter(m => !m.is_read && m.sender.id !== {{ request.user.id }}).length : 
+                    0;
+                
+                // Определяем участников чата
+                const participants = [];
+                if (chat.user) participants.push(chat.user.username);
+                if (chat.admin) participants.push(chat.admin.username);
+                
+                html += `
+                <div class="chat-item ${unreadCount > 0 ? 'unread' : ''}">
+                    <a href="/admin-chats/${chat.id}/">
+                        <h3>Чат #${chat.id}</h3>
+                        <p>Участники: ${participants.join(', ')}</p>
+                        <p>${lastMessage ? `Последнее сообщение: ${formatDate(lastMessage.timestamp)}` : 'Нет сообщений'}</p>
+                        ${unreadCount > 0 ? `<p>Непрочитанных: ${unreadCount}</p>` : ''}
+                    </a>
+                </div>
+                `;
+            });
+            
+            chatListContainer.innerHTML = html;
+            
+        } catch (error) {
+            console.error('Error:', error);
+            errorMessage.textContent = error.message;
+            errorMessage.style.display = 'block';
+            
+            // Если ошибка авторизации, перенаправляем на страницу входа
+            if (error.message.includes('авторизация')) {
+                window.location.href = '/login/';
+            }
+        } finally {
+            loadingIndicator.style.display = 'none';
+        }
+    }
+
+    // Инициализация
+    loadChats();
+
+    // Опционально: обновление списка каждые 30 секунд
+    setInterval(loadChats, 30000);
+});
+</script>
+
+<style>
+    #chat-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+    }
+    .chat-item {
+        border: 1px solid #ddd;
+        padding: 15px;
+        border-radius: 5px;
+        transition: all 0.3s;
+    }
+    .chat-item:hover {
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .chat-item.unread {
+        border-left: 4px solid #ff5722;
+        background-color: #fff8f5;
+    }
+    .chat-item a {
+        text-decoration: none;
+        color: inherit;
+    }
+    #loading-indicator {
+        padding: 20px;
+        text-align: center;
+        font-style: italic;
+    }
+</style>
+{% endblock %}

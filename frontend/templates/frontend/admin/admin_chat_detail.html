@@ -1,0 +1,149 @@
+{% extends 'frontend/base.html' %}
+
+{% block content %}
+<div class="chat-admin-container">
+    <h1>Чат #{{ room.id }}</h1>
+    <a href="{% url 'frontend:admin_chat_list' %}" class="back-link">← Назад к списку чатов</a>
+    
+    <div id="chat-messages">
+        {% for message in messages %}
+        <div class="message {% if message.sender == request.user %}sent{% else %}received{% endif %}">
+            <div class="message-sender">{{ message.sender.get_username }}</div>
+            <div class="message-content">{{ message.content }}</div>
+            <div class="message-time">{{ message.timestamp|date:"H:i d.m.Y" }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="message-input">
+        <input type="text" id="chat-message-input" placeholder="Введите сообщение...">
+        <button id="chat-message-submit">Отправить</button>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const roomId = "{{ room.id }}";
+        const userId = "{{ request.user.id }}";
+        const wsUrl = 'ws://' + window.location.host + '/ws/chat/' + roomId + '/';
+        const chatSocket = new WebSocket(wsUrl);
+
+        // Прокрутка вниз при загрузке
+        const chatMessages = document.getElementById('chat-messages');
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        function addMessageToChat(message, senderId, senderName, timestamp) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${senderId == userId ? 'sent' : 'received'}`;
+            
+            messageDiv.innerHTML = `
+                <div class="message-sender">${senderName}</div>
+                <div class="message-content">${message}</div>
+                <div class="message-time">${new Date(timestamp).toLocaleTimeString()}</div>
+            `;
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            addMessageToChat(
+                data.message, 
+                data.sender_id, 
+                data.sender_name, 
+                data.timestamp
+            );
+        };
+
+        document.getElementById('chat-message-submit').onclick = function() {
+            const messageInput = document.getElementById('chat-message-input');
+            const message = messageInput.value.trim();
+            
+            if (message && chatSocket.readyState === WebSocket.OPEN) {
+                chatSocket.send(JSON.stringify({
+                    'message': message,
+                    'sender_id': userId
+                }));
+                messageInput.value = '';
+            }
+        };
+
+        document.getElementById('chat-message-input').addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('chat-message-submit').click();
+            }
+        });
+    });
+</script>
+
+<style>
+    .chat-admin-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    .back-link {
+        display: inline-block;
+        margin-bottom: 20px;
+        color: #666;
+    }
+    #chat-messages {
+        height: 500px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        padding: 15px;
+        margin-bottom: 15px;
+        background: #f9f9f9;
+        border-radius: 5px;
+    }
+    .message {
+        margin-bottom: 15px;
+        padding: 10px 15px;
+        border-radius: 18px;
+        max-width: 70%;
+    }
+    .message.sent {
+        background: #dcf8c6;
+        margin-left: auto;
+    }
+    .message.received {
+        background: #f1f0f0;
+        margin-right: auto;
+    }
+    .message-sender {
+        font-weight: bold;
+        font-size: 0.9em;
+        margin-bottom: 5px;
+    }
+    .message-content {
+        word-wrap: break-word;
+    }
+    .message-time {
+        font-size: 0.8em;
+        color: #666;
+        text-align: right;
+        margin-top: 5px;
+    }
+    .message-input {
+        display: flex;
+        gap: 10px;
+    }
+    #chat-message-input {
+        flex-grow: 1;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+    }
+    #chat-message-submit {
+        padding: 10px 20px;
+        background: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    #chat-message-submit:hover {
+        background: #45a049;
+    }
+</style>
+{% endblock %}
