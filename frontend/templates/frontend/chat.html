@@ -5,57 +5,65 @@
 {% block content %}
 
 <div id="chat-container">
-        <div id="chat-messages"></div>
-        <input type="text" id="chat-message-input" placeholder="Введите сообщение...">
-        <button id="chat-message-submit">Отправить</button>
+    <div id="chat-messages">
+        <!-- Здесь будут отображаться сообщения -->
+        {% for message in messages %}
+            <div class="message {% if message.sender == request.user %}sent{% else %}received{% endif %}">
+                {{ message.content }}
+            </div>
+        {% endfor %}
     </div>
+    <input type="text" id="chat-message-input" placeholder="Введите сообщение...">
+    <button id="chat-message-submit">Отправить</button>
+</div>
 
-    <div style="display: none;">
+<div style="display: none;">
     Room object: {{ room }}
     Room ID: {{ room.id }}
     User ID: {{ request.user.id }}
-    </div>
+</div>
 
-    <script>
-        $(document).ready(function() {
-    const roomId = "{{ room.id }}";  // Получаем из контекста Django
-    const userId = "{{ request.user.id }}";
-    
-    // Проверяем наличие roomId
-    if (!roomId) {
-        console.error('Room ID is not defined!');
-        return;
-    }
-    
-    // Формируем URL WebSocket
-    const wsUrl = 'ws://' + window.location.host + '/ws/chat/' + roomId + '/';
-    console.log('Connecting to WebSocket:', wsUrl);
-    
-    // Подключаемся к WebSocket
-    const chatSocket = new WebSocket(wsUrl);
+<script>
+    $(document).ready(function() {
+        const roomId = "{{ room.id }}";
+        const userId = "{{ request.user.id }}";
+        
+        if (!roomId) {
+            console.error('Room ID is not defined!');
+            return;
+        }
+        
+        const wsUrl = 'ws://' + window.location.host + '/ws/chat/' + roomId + '/';
+        console.log('Connecting to WebSocket:', wsUrl);
+        
+        const chatSocket = new WebSocket(wsUrl);
 
-    // Обработчик открытия соединения
-    chatSocket.onopen = function(e) {
-        console.log('WebSocket connection established');
-    };
+        chatSocket.onopen = function(e) {
+            console.log('WebSocket connection established');
+        };
 
-    // Обработчик ошибок
-    chatSocket.onerror = function(error) {
-        console.error('WebSocket Error:', error);
-    };
+        chatSocket.onerror = function(error) {
+            console.error('WebSocket Error:', error);
+        };
 
-    // Обработчик закрытия соединения
-    chatSocket.onclose = function(e) {
-        console.log('WebSocket connection closed');
-    };
+        chatSocket.onclose = function(e) {
+            console.log('WebSocket connection closed');
+        };
 
-    // Обработчик входящих сообщений
-    chatSocket.onmessage = function(e) {
-        try {
-            const data = JSON.parse(e.data);
-            const message = data.message;
-            const senderId = data.sender_id;
-            
+        chatSocket.onmessage = function(e) {
+            try {
+                const data = JSON.parse(e.data);
+                const message = data.message;
+                const senderId = data.sender_id;
+                
+                addMessageToChat(message, senderId);
+            } catch (error) {
+                console.error('Error processing message:', error);
+            }
+        };
+
+        // Функция для добавления сообщения в чат
+        function addMessageToChat(message, senderId) {
             const messageElement = $('<div>').addClass('message');
             if (senderId == userId) {
                 messageElement.addClass('sent');
@@ -64,31 +72,75 @@
             }
             messageElement.text(message);
             $('#chat-messages').append(messageElement);
-        } catch (error) {
-            console.error('Error processing message:', error);
+            
+            // Прокрутка вниз при новом сообщении
+            $('#chat-messages').scrollTop($('#chat-messages')[0].scrollHeight);
         }
-    };
 
-    // Отправка сообщения
-    $('#chat-message-submit').click(function() {
-        const messageInput = $('#chat-message-input');
-        const message = messageInput.val().trim();
-        
-        if (message && chatSocket.readyState === WebSocket.OPEN) {
-            chatSocket.send(JSON.stringify({
-                'message': message,
-                'sender_id': userId
-            }));
-            messageInput.val('');
-        }
-    });
+        $('#chat-message-submit').click(function() {
+            const messageInput = $('#chat-message-input');
+            const message = messageInput.val().trim();
+            
+            if (message && chatSocket.readyState === WebSocket.OPEN) {
+                chatSocket.send(JSON.stringify({
+                    'message': message,
+                    'sender_id': userId
+                }));
+                messageInput.val('');
+            }
+        });
 
-    // Отправка при нажатии Enter
-    $('#chat-message-input').keyup(function(e) {
-        if (e.key === 'Enter') {
-            $('#chat-message-submit').click();
-        }
+        $('#chat-message-input').keyup(function(e) {
+            if (e.key === 'Enter') {
+                $('#chat-message-submit').click();
+            }
+        });
     });
-});
-    </script>
+</script>
+
+<style>
+    #chat-container {
+        max-width: 600px;
+        margin: 0 auto;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        padding: 10px;
+    }
+    
+    #chat-messages {
+        height: 400px;
+        overflow-y: auto;
+        margin-bottom: 10px;
+        border: 1px solid #eee;
+        padding: 10px;
+    }
+    
+    .message {
+        padding: 8px 12px;
+        margin: 5px 0;
+        border-radius: 18px;
+        max-width: 70%;
+        word-wrap: break-word;
+    }
+    
+    .sent {
+        background-color: #dcf8c6;
+        margin-left: auto;
+    }
+    
+    .received {
+        background-color: #f1f0f0;
+        margin-right: auto;
+    }
+    
+    #chat-message-input {
+        width: 70%;
+        padding: 8px;
+        margin-right: 5px;
+    }
+    
+    #chat-message-submit {
+        padding: 8px 15px;
+    }
+</style>
 {% endblock %}

@@ -3,7 +3,7 @@ from django.shortcuts import get_object_or_404, render
 from django.views import View
 from django.views.generic import TemplateView
 from django.contrib.auth.decorators import login_required
-from api.models.chat.models import ChatRoom
+from api.models.chat.models import ChatRoom, Message
 from api.models.order.models import Order
 from django.contrib import messages
 
@@ -48,9 +48,11 @@ def user_orders_view(request):
 def chat_view(request):
     try:
         room = ChatRoom.get_or_create_for_user(request.user)  # Вызываем через класс
+        messages = Message.objects.filter(room=room).order_by('timestamp')[:50]
         return render(request, 'frontend/chat.html', {
             'room': room,
-            'request': request
+            'request': request,
+            'messages': messages
         })
     except Exception as e:
         print(f"Error in chat_view: {e}")
