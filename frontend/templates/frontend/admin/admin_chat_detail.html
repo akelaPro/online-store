@@ -39,19 +39,47 @@
             messageDiv.innerHTML = `
                 <div class="message-sender">${senderName}</div>
                 <div class="message-content">${message}</div>
-                <div class="message-time">${new Date(timestamp).toLocaleTimeString()}</div>
+                <div class="message-time">${formatTimestamp(timestamp)}</div>
             `;
             
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString() + ' ' + date.toLocaleDateString();
+        }
+
+        // Загрузка истории сообщений при загрузке страницы
+        async function loadChatHistory() {
+            try {
+                const response = await fetch(`/api/rooms/${roomId}/messages/`);
+                if (response.ok) {
+                    const messages = await response.json();
+                    messages.forEach(msg => {
+                        addMessageToChat(
+                            msg.content, 
+                            msg.sender.id, 
+                            msg.sender.username, 
+                            msg.timestamp
+                        );
+                    });
+                }
+            } catch (error) {
+                console.error('Ошибка при загрузке истории чата:', error);
+            }
+        }
+
+        // Вызываем загрузку истории при загрузке страницы
+        loadChatHistory();
+
         chatSocket.onmessage = function(e) {
             const data = JSON.parse(e.data);
             addMessageToChat(
                 data.message, 
                 data.sender_id, 
-                data.sender_name, 
+                data.sender_username, 
                 data.timestamp
             );
         };
@@ -78,6 +106,7 @@
 </script>
 
 <style>
+    /* Ваши стили остаются без изменений */
     .chat-admin-container {
         max-width: 800px;
         margin: 0 auto;

@@ -38,7 +38,17 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def messages(self, request, pk=None):
         chat_room = self.get_object()
-        messages = chat_room.messages.all()
+        
+        # Проверка прав доступа
+        if not (request.user == chat_room.user or request.user == chat_room.admin):
+            return Response({"error": "Доступ запрещен"}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Получаем сообщения через related_name (у вас 'messages')
+        messages = chat_room.messages.all().order_by('timestamp')
+        
+        # Проверка (можно удалить после теста)
+        print(f"Найдено сообщений: {messages.count()}") 
+        
         serializer = MessageSerializer(messages, many=True)
         return Response(serializer.data)
 

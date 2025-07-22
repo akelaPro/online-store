@@ -6,21 +6,10 @@
 
 <div id="chat-container">
     <div id="chat-messages">
-        <!-- Здесь будут отображаться сообщения -->
-        {% for message in messages %}
-            <div class="message {% if message.sender == request.user %}sent{% else %}received{% endif %}">
-                {{ message.content }}
-            </div>
-        {% endfor %}
+        <!-- Сообщения будут загружаться здесь -->
     </div>
     <input type="text" id="chat-message-input" placeholder="Введите сообщение...">
     <button id="chat-message-submit">Отправить</button>
-</div>
-
-<div style="display: none;">
-    Room object: {{ room }}
-    Room ID: {{ room.id }}
-    User ID: {{ request.user.id }}
 </div>
 
 <script>
@@ -33,6 +22,37 @@
             return;
         }
         
+        // Загрузка истории сообщений при открытии страницы
+        // Заменяем старую функцию loadChatHistory на эту:
+async function loadChatHistory() {
+    try {
+        // Пробуем два варианта URL на случай проблем с маршрутизацией
+        let response = await fetch(`/api/rooms/${roomId}/messages/`);
+        
+        // Если первый запрос не сработал, пробуем альтернативный
+        if (!response.ok) {
+            response = await fetch(`/api/messages/?room=${roomId}`);
+        }
+        
+        if (response.ok) {
+            const messages = await response.json();
+            messages.forEach(msg => {
+                addMessageToChat(
+                    msg.content, 
+                    msg.sender.id, 
+                    msg.sender.username, 
+                    msg.timestamp
+                );
+            });
+        } else {
+            console.error('Ошибка загрузки истории:', response.status);
+        }
+    } catch (error) {
+        console.error('Ошибка при загрузке истории чата:', error);
+    }
+}
+
+        // Инициализация WebSocket соединения
         const wsUrl = 'ws://' + window.location.host + '/ws/chat/' + roomId + '/';
         console.log('Connecting to WebSocket:', wsUrl);
         
@@ -40,6 +60,8 @@
 
         chatSocket.onopen = function(e) {
             console.log('WebSocket connection established');
+            // Загружаем историю сообщений после установки соединения
+            loadChatHistory();
         };
 
         chatSocket.onerror = function(error) {
@@ -53,27 +75,35 @@
         chatSocket.onmessage = function(e) {
             try {
                 const data = JSON.parse(e.data);
-                const message = data.message;
-                const senderId = data.sender_id;
-                
-                addMessageToChat(message, senderId);
+                addMessageToChat(
+                    data.message, 
+                    data.sender_id, 
+                    data.sender_username, 
+                    new Date().toISOString()
+                );
             } catch (error) {
                 console.error('Error processing message:', error);
             }
         };
 
-        // Функция для добавления сообщения в чат
-        function addMessageToChat(message, senderId) {
+        // Улучшенная функция для добавления сообщения в чат
+        function addMessageToChat(message, senderId, senderName, timestamp) {
             const messageElement = $('<div>').addClass('message');
             if (senderId == userId) {
                 messageElement.addClass('sent');
             } else {
                 messageElement.addClass('received');
             }
-            messageElement.text(message);
-            $('#chat-messages').append(messageElement);
             
-            // Прокрутка вниз при новом сообщении
+            // Добавляем информацию об отправителе и времени
+            const time = new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            messageElement.html(`
+                <div class="message-sender">${senderName || (senderId == userId ? 'Вы' : 'Поддержка')}</div>
+                <div class="message-content">${message}</div>
+                <div class="message-time">${time}</div>
+            `);
+            
+            $('#chat-messages').append(messageElement);
             $('#chat-messages').scrollTop($('#chat-messages')[0].scrollHeight);
         }
 
@@ -131,6 +161,19 @@
     .received {
         background-color: #f1f0f0;
         margin-right: auto;
+    }
+    
+    .message-sender {
+        font-weight: bold;
+        font-size: 0.9em;
+        margin-bottom: 5px;
+    }
+    
+    .message-time {
+        font-size: 0.8em;
+        color: #666;
+        text-align: right;
+        margin-top: 5px;
     }
     
     #chat-message-input {
