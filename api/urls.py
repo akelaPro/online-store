@@ -30,9 +30,8 @@ urlpatterns = [
     path('', include(cart_router.urls)),
     path('auth/jwt/create/', CookieTokenObtainPairView.as_view(), name='jwt-create'),  # Логин (получение токена)
     path('auth/jwt/refresh/', CookieTokenRefreshView.as_view(), name='jwt-refresh'),   # Обновление токена
-    #path('auth/jwt/verify/', TokenVerifyView.as_view(), name='jwt-verify'),      # Проверка токена -  не обязателен при такой схеме
-
-    # Кастомные эндпоинты
+   
+    
     path('auth/register/', RegistrationAPIView.as_view(), name='register'),             # Регистрация
     path('auth/logout/', LogoutView.as_view(), name='logout'),                   # Выход
     path('check_auth/', AuthCheckView.as_view(), name='check_auth'),              # Проверка аутентификации

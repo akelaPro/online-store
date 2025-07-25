@@ -68,8 +68,8 @@ class CartItemViewSet(viewsets.ModelViewSet):
         return CartItem.objects.filter(cart_id=cart_id)
     
     def perform_create(self, serializer):
-        cart_id = self.kwargs.get('cart_pk')
-        cart = get_object_or_404(Cart, pk=cart_id, user=self.request.user)
+        # Получаем корзину пользователя
+        cart = get_object_or_404(Cart, user=self.request.user)
         product = serializer.validated_data['product']
         
         # Проверяем, есть ли уже такой товар в корзине

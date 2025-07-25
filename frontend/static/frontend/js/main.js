@@ -200,25 +200,34 @@ $(document).ready(function() {
         });
     }
 
-    // Добавление в корзину
     function addToCart(productId) {
-        $.ajax({
-            url: '/api/cart/items/',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                product_id: productId,
-                quantity: 1
-            }),
-            success: function() {
-                updateCartCount();
-                showAlert('Товар добавлен в корзину!', 'success');
-            },
-            error: function(xhr) {
-                showAlert('Ошибка при добавлении в корзину', 'danger');
-            }
+        $.get('/api/cart/', function(cartData) {
+            const cartId = cartData.id;
+            $.ajax({
+                url: `/api/cart/${cartId}/items/`,
+                type: 'POST',
+                contentType: 'application/json',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                },
+                data: JSON.stringify({
+                    product_id: productId,
+                    quantity: 1
+                }),
+                success: function() {
+                    updateCartCount();
+                    showAlert('Товар добавлен в корзину!', 'success');
+                },
+                error: function(xhr) {
+                    showAlert('Ошибка при добавлении в корзину', 'danger');
+                    console.error(xhr);
+                }
+            });
+        }).fail(function() {
+            showAlert('Ошибка при получении корзины', 'danger');
         });
     }
+
 
     // Обновление счетчика корзины
     function updateCartCount() {
